@@ -63,6 +63,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aneiang.Yarp.OpenApi", "src
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aneiang.Yarp.OpenApi.Integration", "tests\Aneiang.Yarp.OpenApi.Integration\Aneiang.Yarp.OpenApi.Integration.csproj", "{1993E281-502F-4D56-B97F-D2A7DB5DF75C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aneiang.Yarp.Iam.Integration", "tests\Aneiang.Yarp.Iam.Integration\Aneiang.Yarp.Iam.Integration.csproj", "{6F32B8D8-366A-40B4-A52D-87C2A44AF251}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -385,6 +387,18 @@ Global
 		{1993E281-502F-4D56-B97F-D2A7DB5DF75C}.Release|x64.Build.0 = Release|Any CPU
 		{1993E281-502F-4D56-B97F-D2A7DB5DF75C}.Release|x86.ActiveCfg = Release|Any CPU
 		{1993E281-502F-4D56-B97F-D2A7DB5DF75C}.Release|x86.Build.0 = Release|Any CPU
+		{6F32B8D8-366A-40B4-A52D-87C2A44AF251}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6F32B8D8-366A-40B4-A52D-87C2A44AF251}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6F32B8D8-366A-40B4-A52D-87C2A44AF251}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{6F32B8D8-366A-40B4-A52D-87C2A44AF251}.Debug|x64.Build.0 = Debug|Any CPU
+		{6F32B8D8-366A-40B4-A52D-87C2A44AF251}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{6F32B8D8-366A-40B4-A52D-87C2A44AF251}.Debug|x86.Build.0 = Debug|Any CPU
+		{6F32B8D8-366A-40B4-A52D-87C2A44AF251}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6F32B8D8-366A-40B4-A52D-87C2A44AF251}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6F32B8D8-366A-40B4-A52D-87C2A44AF251}.Release|x64.ActiveCfg = Release|Any CPU
+		{6F32B8D8-366A-40B4-A52D-87C2A44AF251}.Release|x64.Build.0 = Release|Any CPU
+		{6F32B8D8-366A-40B4-A52D-87C2A44AF251}.Release|x86.ActiveCfg = Release|Any CPU
+		{6F32B8D8-366A-40B4-A52D-87C2A44AF251}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -417,6 +431,7 @@ Global
 		{14D65206-B53D-47B1-B0E8-17E27B73D0E2} = {9B6CB266-A584-4BF6-A116-ECC6DACC8228}
 		{1A4BE1C4-9CD1-420A-990A-AB1FE0FEEE43} = {9B6CB266-A584-4BF6-A116-ECC6DACC8228}
 		{1993E281-502F-4D56-B97F-D2A7DB5DF75C} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{6F32B8D8-366A-40B4-A52D-87C2A44AF251} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {2298A573-1066-4805-A90A-F81617EB2FFA}
