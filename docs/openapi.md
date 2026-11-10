@@ -1,6 +1,6 @@
 # OpenAPI aggregation, Swagger UI and Scalar
 
-`Aneiang.Yarp.OpenApi` integrates MMLib.OpenApiForYarp **1.1.0**, its SwaggerUI adapter **1.1.0**, and its Scalar adapter **1.1.0** with Aneiang's existing YARP builder. It targets `net8.0;net9.0`. NuGet selects MMLib's .NET 8 assets on both frameworks; the shared YARP dependency remains **2.3.0**. No .NET 10 retargeting, additional routing provider, second proxy mapping, database, port, or synchronization service is introduced.
+`Aneiang.Yarp.OpenApi` integrates MMLib.OpenApiForYarp **1.1.0**, its SwaggerUI adapter **1.1.0**, and its Scalar adapter **1.1.0** with Aneiang's existing YARP builder. It targets `net10.0`. NuGet selects MMLib's .NET 8 assets on the framework; the shared YARP dependency remains **2.3.0**. No .NET 10 retargeting, additional routing provider, second proxy mapping, database, port, or synchronization service is introduced.
 
 ## Registration
 
@@ -173,8 +173,7 @@ The new executable integration suite follows the repository's console-runner con
 ```powershell
 dotnet restore Aneiang.Yarp.sln
 dotnet build Aneiang.Yarp.sln
-dotnet run --project tests/Aneiang.Yarp.OpenApi.Integration -f net8.0
-dotnet run --project tests/Aneiang.Yarp.OpenApi.Integration -f net9.0
+dotnet run --project tests/Aneiang.Yarp.OpenApi.Integration -f net10.0
 dotnet run --project tests/Aneiang.Yarp.Regression
 dotnet list src/Aneiang.Yarp.OpenApi package --vulnerable --include-transitive
 ```
