@@ -4,6 +4,7 @@ using Aneiang.Yarp.Dashboard.Infrastructure.Middleware;
 using Aneiang.Yarp.Dashboard.Infrastructure.Plugin;
 using Aneiang.Yarp.Dashboard.Infrastructure.Realtime;
 using Aneiang.Yarp.Dashboard.Infrastructure.Yarp;
+using Aneiang.Yarp.Iam;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -177,6 +178,12 @@ public static class DashboardApplicationBuilderExtensions
             {
                 endpoints.MapReverseProxy(proxyPipeline =>
                 {
+                    // Mandatory IAM PEP is deliberately outside Plugin Center and runs before
+                    // transforms/plugins. Its service marker is registered only for IAM-enabled hosts.
+                    if (app.ApplicationServices.GetService<IamGatewayMarker>() is not null)
+                    {
+                        proxyPipeline.UseAneiangIamGateway();
+                    }
                     if (autoUseMiddleware && useOptions.UseBuiltInProxyPipeline)
                     {
                         proxyPipeline.UseMiddleware<BuiltinTransformMiddleware>();
