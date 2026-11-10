@@ -1,0 +1,256 @@
+@using Aneiang.Yarp.Plugin.ProxyLog.Models
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Configuration History" : "配置变更历史";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<style>
+    /* ── Configuration History (compact) ── */
+    .history-shell { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+    .history-timeline { position: relative; }
+    .history-timeline::before { content: ''; position: absolute; left: 13px; top: 10px; bottom: 10px; width: 2px; background: #e2e8f0; }
+    .history-item { position: relative; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 10px; margin-bottom: 8px; }
+    .history-dot { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 13px; z-index: 1; }
+    .history-dot.update { background: #6366f1; }
+    .history-dot.delete { background: #ef4444; }
+    .history-dot.rollback { background: #f59e0b; }
+    .history-dot.import { background: #0ea5e9; }
+    .history-dot.rename { background: #8b5cf6; }
+    .history-dot.manual { background: #10b981; }
+    .history-entry-card { background: #fff; border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; transition: border-color .15s ease; cursor: pointer; }
+    .history-entry-card:hover, .history-entry-card.active { border-color: rgba(99,102,241,.45); }
+    .history-entry-card h6 { font-size: 13px; }
+    .history-version { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; color: #94a3b8; word-break: break-all; }
+    .history-meta { display: flex; flex-wrap: wrap; gap: 8px; color: var(--text-muted); font-size: 11.5px; }
+    .history-side { position: sticky; top: 82px; }
+    .history-detail-card { background: #fff; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; }
+    .history-detail-header { padding: 12px 14px; border-bottom: 1px solid var(--border-light, #f1f5f9); font-weight: 600; font-size: 13px; }
+    .history-detail-body { padding: 14px; }
+    .history-filter-card { border: 1px solid var(--border-color, #e2e8f0); border-radius: 8px; padding: 10px; background: #fff; }
+    .history-empty-state { background: #fff; border: 1px dashed var(--border-color); border-radius: 8px; padding: 36px 20px; text-align: center; }
+    .history-action-bar { display: flex; gap: 6px; flex-wrap: wrap; }
+    .history-meta .btn { padding: 2px 8px; font-size: 11.5px; }
+    @@media (max-width: 1100px) { .history-shell { grid-template-columns: 1fr; } .history-side { position: static; } }
+</style>
+
+<div class="dash-page-head">
+    <h2 class="dash-page-head-title"><i class="bi bi-clock-history" style="color:#6366f1;"></i><span data-i18n="history.title">配置变更历史</span></h2>
+    <div class="dash-page-head-actions">
+        <button class="btn btn-sm btn-success" id="history-export-btn">
+            <i class="bi bi-download me-1"></i><span data-i18n="history.export">导出配置</span>
+        </button>
+        <button class="btn btn-sm btn-outline-success" id="history-import-btn">
+            <i class="bi bi-upload me-1"></i><span data-i18n="history.import">导入配置</span>
+        </button>
+        <button class="btn btn-sm btn-primary" id="history-create-snapshot">
+            <i class="bi bi-plus-circle me-1"></i><span data-i18n="history.createSnapshot">创建快照</span>
+        </button>
+        <button class="btn btn-sm btn-outline-primary" id="history-refresh">
+            <i class="bi bi-arrow-clockwise me-1"></i><span data-i18n="history.refresh">刷新</span>
+        </button>
+        <button class="btn btn-sm btn-outline-danger" id="history-clear-all">
+            <i class="bi bi-trash3 me-1"></i><span data-i18n="history.clearAll">清空历史</span>
+        </button>
+    </div>
+</div>
+
+<div class="pc-meta-line mb-3">
+    <span class="pc-meta-item"><i class="bi bi-clock-history"></i><span class="pc-meta-num" id="history-stat-total">--</span><span class="pc-meta-label" data-i18n="history.stat.total">快照总数</span></span>
+    <span class="pc-meta-item"><i class="bi bi-lightning"></i><span class="pc-meta-num" id="history-stat-latest">--</span><span class="pc-meta-label" data-i18n="history.stat.latest">最近变更</span></span>
+    <span class="pc-meta-item"><i class="bi bi-signpost-split"></i><span class="pc-meta-num" id="history-stat-routes">--</span><span class="pc-meta-label" data-i18n="history.stat.routes">当前路由</span></span>
+    <span class="pc-meta-item"><i class="bi bi-diagram-3"></i><span class="pc-meta-num" id="history-stat-clusters">--</span><span class="pc-meta-label" data-i18n="history.stat.clusters">当前集群</span></span>
+</div>
+
+<div class="history-filter-card mb-4">
+    <div class="row g-3 align-items-end">
+        <div class="col-md-6 col-xl-5">
+            <label class="form-label small text-muted" data-i18n="history.search.label">搜索版本、描述或客户端 IP</label>
+            <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input id="history-search" class="form-control" data-i18n-placeholder="history.search.placeholder" placeholder="输入关键字..." autocomplete="off" />
+            </div>
+        </div>
+        <div class="col-md-3 col-xl-3">
+            <label class="form-label small text-muted" data-i18n="history.type.label">变更类型</label>
+            <select id="history-type-filter" class="form-select">
+                <option value="" data-i18n="history.type.all">全部类型</option>
+                <option value="manual" data-i18n="history.type.manual">手动快照</option>
+                <option value="update" data-i18n="history.type.update">保存/更新</option>
+                <option value="delete" data-i18n="history.type.delete">删除</option>
+                <option value="rename" data-i18n="history.type.rename">重命名</option>
+                <option value="import" data-i18n="history.type.import">导入</option>
+                <option value="rollback" data-i18n="history.type.rollback">回滚</option>
+            </select>
+        </div>
+        <div class="col-md-3 col-xl-2">
+            <label class="form-label small text-muted" data-i18n="history.sort.label">排序</label>
+            <select id="history-sort" class="form-select">
+                <option value="desc" data-i18n="history.sort.desc">最新优先</option>
+                <option value="asc" data-i18n="history.sort.asc">最早优先</option>
+            </select>
+        </div>
+        <div class="col-xl-2">
+            <button id="history-clear-filter" class="btn btn-outline-secondary w-100"><i class="bi bi-x-circle me-1"></i><span data-i18n="history.clearFilter">清空</span></button>
+        </div>
+    </div>
+</div>
+
+<div class="history-shell">
+    <div id="history-content"></div>
+    <aside class="history-side">
+        <div id="history-detail" class="history-detail-card">
+            <div class="history-detail-header">
+                <i class="bi bi-info-circle me-1 text-muted"></i><span data-i18n="history.detail.select">选择一个快照</span>
+            </div>
+            <div class="history-detail-body text-muted" data-i18n="history.detail.empty">
+                点击左侧时间线中的任意快照，查看版本号、规模统计、来源 IP，并执行复制、差异对比或回滚。
+            </div>
+        </div>
+    </aside>
+</div>
+
+<!-- Hidden file input for import -->
+<input type="file" id="history-import-file" accept=".json" style="display:none" />
+
+<!-- Import preview modal -->
+<div class="modal fade" id="import-preview-modal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-upload me-2"></i><span data-i18n="history.importPreview">导入配置预览</span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="import-summary" class="mb-3"></div>
+        <div class="alert alert-warning">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          <span data-i18n="history.importWarning">导入将替换当前所有路由和集群配置，请确认后再操作。</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="common.cancel">取消</button>
+        <button type="button" class="btn btn-success" id="import-confirm-btn"><i class="bi bi-check-lg me-1"></i><span data-i18n="history.importConfirm">确认导入</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+@section Scripts {
+@{ var v = typeof(LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
+<script src="/_content/Aneiang.Yarp.Dashboard/js/editors/dashboard-diff-panel.js?v=@v"></script>
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-history.js?v=@v"></script>
+
+@await Html.PartialAsync("_DashboardPageInit")
+
+<script>
+    (async function() {
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardStorage) DashboardStorage.init();
+        if (window.DashboardModals) DashboardModals.init();
+        if (window.DashboardEvents) DashboardEvents.setup();
+
+        if (window.DashboardApp?.modules?.history?.init) await DashboardApp.modules.history.init();
+        if (window.HistoryModule?.loadHistory) await HistoryModule.loadHistory();
+
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
+
+    // Export config
+    (function() {
+        var btn = document.getElementById('history-export-btn');
+        if (!btn) return;
+        btn.addEventListener('click', async function() {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>' + (window.__ ? __('history.exporting') : 'Exporting...');
+            try {
+                var resp = await fetch('/api/config/export');
+                var json = await resp.json();
+                var blob = new Blob([JSON.stringify(json.data, null, 2)], { type: 'application/json' });
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = 'yarp-config-' + new Date().toISOString().slice(0, 10) + '.json';
+                a.click();
+                URL.revokeObjectURL(url);
+                if (window.DashboardModals) DashboardModals.showSuccess(window.__ ? __('history.exportSuccess') : 'Export completed');
+            } catch (e) {
+                if (window.DashboardModals) DashboardModals.showError((window.__ ? __('history.exportFailed') : 'Export failed') + ': ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-download me-1"></i>' + (window.__ ? __('history.export') : '导出配置');
+            }
+        });
+    })();
+
+    // Import config
+    (function() {
+        var importBtn = document.getElementById('history-import-btn');
+        var fileInput = document.getElementById('history-import-file');
+        var previewModal = document.getElementById('import-preview-modal');
+        var summaryDiv = document.getElementById('import-summary');
+        var confirmBtn = document.getElementById('import-confirm-btn');
+        var pendingData = null;
+        if (!importBtn || !fileInput) return;
+
+        importBtn.addEventListener('click', function() { fileInput.click(); });
+
+        fileInput.addEventListener('change', function(e) {
+            var file = e.target.files[0];
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function(ev) {
+                try {
+                    var data = JSON.parse(ev.target.result);
+                    var d = data.data || data;
+                    var routes = (d.routes || []).length;
+                    var clusters = (d.clusters || []).length;
+                    var bindings = (d.pluginBindings || []).length;
+                    var isEn = (window.__ && document.cookie.indexOf('dashboard_locale=en-US') >= 0);
+                    summaryDiv.innerHTML =
+                        '<div class="d-flex justify-content-around text-center">' +
+                        '<div><div class="h3 mb-0 text-primary">' + routes + '</div><div class="small text-muted">' + (isEn ? 'Routes' : '路由') + '</div></div>' +
+                        '<div><div class="h3 mb-0 text-success">' + clusters + '</div><div class="small text-muted">' + (isEn ? 'Clusters' : '集群') + '</div></div>' +
+                        '<div><div class="h3 mb-0 text-info">' + bindings + '</div><div class="small text-muted">' + (isEn ? 'Bindings' : '绑定') + '</div></div>' +
+                        '</div>';
+                    pendingData = data;
+                    new bootstrap.Modal(previewModal).show();
+                } catch (err) {
+                    if (window.DashboardModals) DashboardModals.showError((window.__ ? __('history.importParseFailed') : 'Invalid JSON file') + ': ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+            fileInput.value = '';
+        });
+
+        confirmBtn.addEventListener('click', async function() {
+            if (!pendingData) return;
+            confirmBtn.disabled = true;
+            confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>' + (window.__ ? __('common.importing') : 'Importing...');
+            try {
+                var resp = await fetch('/api/config/import', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(pendingData)
+                });
+                var result = await resp.json();
+                if (result.code === 200) {
+                    bootstrap.Modal.getInstance(previewModal).hide();
+                    if (window.DashboardModals) DashboardModals.showSuccess((window.__ ? __('history.importSuccess') : 'Import completed') + ': ' + (result.imported.routes || 0) + ' routes, ' + (result.imported.clusters || 0) + ' clusters');
+                    if (window.HistoryModule && HistoryModule.loadHistory) HistoryModule.loadHistory();
+                } else {
+                    if (window.DashboardModals) DashboardModals.showError(result.message || 'Import failed');
+                }
+            } catch (e) {
+                if (window.DashboardModals) DashboardModals.showError((window.__ ? __('history.importFailed') : 'Import failed') + ': ' + e.message);
+            } finally {
+                confirmBtn.disabled = false;
+                confirmBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>' + (window.__ ? __('history.importConfirm') : '确认导入');
+                pendingData = null;
+            }
+        });
+    })();
+</script>
+}

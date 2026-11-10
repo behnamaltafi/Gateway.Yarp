@@ -1,0 +1,297 @@
+using System.Text.Json;
+using Aneiang.Yarp.Dashboard.Infrastructure;
+using Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Services;
+using Aneiang.Yarp.Models;
+using Aneiang.Yarp.Services;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Yarp.ReverseProxy.Configuration;
+
+namespace Aneiang.Yarp.Dashboard.Modules.GatewayConfig.Controllers;
+
+/// <summary>
+/// Route CRUD operations — save, delete, rename.
+/// </summary>
+[Route("api/config")]
+[ApiController]
+public class RouteConfigController : ConfigControllerBase
+{
+    private readonly ILogger<RouteConfigController> _logger;
+    private readonly IGatewayIdentityService _identityService;
+
+    public RouteConfigController(
+        IConfigPersistenceService persistenceService,
+        IDynamicYarpConfigService dynamicConfig,
+        ILogger<RouteConfigController> logger,
+        IMemoryCache memoryCache,
+        IGatewayIdentityService identityService,
+        IConfigSnapshotScheduler snapshotScheduler,
+        IOptionsMonitor<ConfigHistoryOptions> configHistoryOptions)
+        : base(persistenceService, dynamicConfig, memoryCache, snapshotScheduler, configHistoryOptions)
+    {
+        _logger = logger;
+        _identityService = identityService;
+    }
+
+    /// <summary>
+    /// Save or update a single route from a full native YARP route config.
+    /// </summary>
+    [HttpPut("routes/{routeId}")]
+    public async Task<IActionResult> SaveRoute(string routeId, [FromBody] JsonElement config)
+    {
+        try
+        {
+            _logger.LogInformation("Save route requested: {RouteId}", routeId);
+
+            RouteConfig? route;
+            try
+            {
+                route = Aneiang.Yarp.Serialization.YarpJsonConfig.DeserializeRoute(config);
+            }
+            catch (Exception parseEx)
+            {
+                return BadRequest(new { code = 400, message = "Invalid route configuration: " + parseEx.Message });
+            }
+
+            if (route == null)
+                return BadRequest(new { code = 400, message = "Route configuration is required" });
+
+            route = route with { RouteId = routeId };
+
+            if (string.IsNullOrWhiteSpace(route.ClusterId))
+                return BadRequest(new { code = 400, message = "ClusterId is required" });
+
+            if (route.Match == null || (string.IsNullOrWhiteSpace(route.Match.Path) && (route.Match.Hosts == null || route.Match.Hosts.Count == 0)))
+                return BadRequest(new { code = 400, message = "Match.Path or Match.Hosts is required" });
+
+            await EnsureClusterForRouteAsync(route.ClusterId!, config);
+
+            await SnapshotLowRiskMutationAsync($"After route '{routeId}' saved via dashboard");
+
+            var result = await DynamicConfig.TryAddRouteConfig(route, "dashboard", "dashboard-user");
+
+            if (result.Success) InvalidateQueryCaches();
+            return result.Success
+                ? Ok(new { code = 200, message = result.Message, routeId = routeId })
+                : BadRequest(new { code = 400, message = result.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to save route: {RouteId}", routeId);
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Save failed", ex) });
+        }
+    }
+
+    /// <summary>
+    /// Enable or disable a route. Disabled routes are retained but excluded from forwarding.
+    /// </summary>
+    [HttpPut("routes/{routeId}/enabled")]
+    public async Task<IActionResult> SetRouteEnabled(string routeId, [FromBody] JsonElement body)
+    {
+        try
+        {
+            if (!body.TryGetProperty("enabled", out var enabledProp))
+                return BadRequest(new { code = 400, message = "enabled is required" });
+
+            var enabled = enabledProp.GetBoolean();
+            _logger.LogInformation("Set route {RouteId} enabled={Enabled}", routeId, enabled);
+
+            await SnapshotLowRiskMutationAsync($"Before route '{routeId}' {(enabled ? "enabled" : "disabled")} via dashboard");
+
+            var result = await DynamicConfig.TrySetRouteEnabled(routeId, enabled, "dashboard-user");
+
+            if (result.Success) InvalidateQueryCaches();
+            return result.Success
+                ? Ok(new { code = 200, message = result.Message, routeId = routeId, enabled = enabled })
+                : BadRequest(new { code = 400, message = result.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to set route enabled: {RouteId}", routeId);
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Toggle failed", ex) });
+        }
+    }
+
+    /// <summary>
+    /// Delete a route.
+    /// </summary>
+    [HttpDelete("routes/{routeId}")]
+    public async Task<IActionResult> DeleteRoute(string routeId, [FromQuery] bool removeOrphanedCluster = false)
+    {
+        try
+        {
+            _logger.LogInformation("Delete route requested: {RouteId}", routeId);
+
+            await PersistenceService.SaveSnapshotAsync($"Before route '{routeId}' deleted via dashboard", GetClientIp());
+
+            var result = await DynamicConfig.TryRemoveRoute(routeId, null, removeOrphanedCluster);
+
+            if (result.Success) InvalidateQueryCaches();
+            return result.Success
+                ? Ok(new { code = 200, message = result.Message, routeId = routeId })
+                : BadRequest(new { code = 400, message = result.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete route: {RouteId}", routeId);
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Delete failed", ex) });
+        }
+    }
+
+    /// <summary>
+    /// Rename a route atomically.
+    /// </summary>
+    [HttpPut("routes/{routeId}/rename")]
+    public async Task<IActionResult> RenameRoute(string routeId, [FromBody] JsonElement config)
+    {
+        try
+        {
+            _logger.LogInformation("Rename route requested: {OldRouteId}", routeId);
+
+            string? newRouteId = null;
+            if (config.TryGetProperty("newRouteId", out var newIdProp))
+                newRouteId = newIdProp.GetString();
+            else if (config.TryGetProperty("routeId", out var ridProp))
+                newRouteId = ridProp.GetString();
+
+            if (string.IsNullOrWhiteSpace(newRouteId))
+                return BadRequest(new { code = 400, message = "newRouteId is required" });
+
+            if (string.Equals(routeId, newRouteId, StringComparison.OrdinalIgnoreCase))
+                return BadRequest(new { code = 400, message = "New route ID is the same as the old one" });
+
+            string? matchPath = null;
+            string? clusterId = null;
+            int? order = null;
+            List<Dictionary<string, string>>? transforms = null;
+
+            if (config.TryGetProperty("matchPath", out var mp) || config.TryGetProperty("MatchPath", out mp))
+                matchPath = mp.GetString();
+            if (config.TryGetProperty("clusterId", out var ci) || config.TryGetProperty("ClusterId", out ci))
+                clusterId = ci.GetString();
+            if (config.TryGetProperty("order", out var o) || config.TryGetProperty("Order", out o))
+                order = o.GetInt32();
+            if (config.TryGetProperty("transforms", out var t) || config.TryGetProperty("Transforms", out t))
+                transforms = t.Deserialize<List<Dictionary<string, string>>>();
+
+            var request = new RegisterRouteRequest
+            {
+                RouteName = newRouteId,
+                ClusterName = clusterId ?? string.Empty,
+                MatchPath = matchPath ?? string.Empty,
+                Order = order,
+                Transforms = transforms
+            };
+
+            var result = await _identityService.RenameRouteAsync(
+                routeId, newRouteId, request,
+                clientIp: GetClientIp(), operatorName: "dashboard-user",
+                ct: HttpContext.RequestAborted);
+
+            if (result.Success) InvalidateQueryCaches();
+            return result.Success
+                ? Ok(new { code = 200, message = result.Message, routeId = newRouteId })
+                : BadRequest(new { code = 400, message = result.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to rename route: {RouteId}", routeId);
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Rename failed", ex) });
+        }
+    }
+
+    /// <summary>
+    /// Batch delete routes in one atomic operation. Optionally removes clusters
+    /// left orphaned by the deletion.
+    /// </summary>
+    [HttpPost("routes/batch-delete")]
+    public async Task<IActionResult> BatchDeleteRoutes([FromBody] BatchDeleteRoutesRequest request)
+    {
+        if (request is null || request.RouteIds is null || request.RouteIds.Count == 0)
+            return BadRequest(new { code = 400, message = "routeIds is required and must be non-empty" });
+
+        try
+        {
+            _logger.LogInformation("Batch delete {Count} route(s) requested", request.RouteIds.Count);
+            await PersistenceService.SaveSnapshotAsync($"Before batch delete {request.RouteIds.Count} route(s) via dashboard", GetClientIp());
+
+            var result = await DynamicConfig.BatchDeleteRoutesAsync(request.RouteIds, request.RemoveOrphanedClusters, "dashboard-user");
+            if (result.Succeeded > 0) InvalidateQueryCaches();
+
+            return Ok(new
+            {
+                code = 200,
+                message = result.Message,
+                data = new
+                {
+                    succeeded = result.Succeeded,
+                    failed = result.Failed,
+                    total = result.Total,
+                    items = result.Items
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to batch delete routes");
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Batch delete failed", ex) });
+        }
+    }
+
+    /// <summary>
+    /// Batch enable or disable routes in one atomic operation.
+    /// </summary>
+    [HttpPost("routes/batch-enabled")]
+    public async Task<IActionResult> BatchSetRoutesEnabled([FromBody] BatchSetRoutesEnabledRequest request)
+    {
+        if (request is null || request.RouteIds is null || request.RouteIds.Count == 0)
+            return BadRequest(new { code = 400, message = "routeIds is required and must be non-empty" });
+
+        try
+        {
+            _logger.LogInformation("Batch {Action} {Count} route(s) requested", request.Enabled ? "enable" : "disable", request.RouteIds.Count);
+            await SnapshotLowRiskMutationAsync($"Before batch {(request.Enabled ? "enable" : "disable")} {request.RouteIds.Count} route(s) via dashboard");
+
+            var result = await DynamicConfig.BatchSetRoutesEnabledAsync(request.RouteIds, request.Enabled, "dashboard-user");
+            if (result.Succeeded > 0) InvalidateQueryCaches();
+
+            return Ok(new
+            {
+                code = 200,
+                message = result.Message,
+                data = new
+                {
+                    succeeded = result.Succeeded,
+                    failed = result.Failed,
+                    total = result.Total,
+                    items = result.Items
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to batch set routes enabled");
+            return StatusCode(500, new { code = 500, message = SafeErrorMessages.Create(HttpContext, "Batch toggle failed", ex) });
+        }
+    }
+}
+
+/// <summary>Request body for batch deleting routes.</summary>
+public sealed class BatchDeleteRoutesRequest
+{
+    /// <summary>Route ids to delete.</summary>
+    public List<string> RouteIds { get; set; } = new();
+    /// <summary>Whether to also delete clusters left orphaned by the removed routes.</summary>
+    public bool RemoveOrphanedClusters { get; set; }
+}
+
+/// <summary>Request body for batch enabling/disabling routes.</summary>
+public sealed class BatchSetRoutesEnabledRequest
+{
+    /// <summary>Route ids to update.</summary>
+    public List<string> RouteIds { get; set; } = new();
+    /// <summary>True to enable, false to disable.</summary>
+    public bool Enabled { get; set; }
+}

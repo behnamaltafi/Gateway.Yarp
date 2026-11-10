@@ -1,0 +1,26 @@
+{
+  "openapi": "3.0.3",
+  "info": { "title": "Sample Local Service", "version": "1.0.0" },
+  "paths": {
+    "/api/local-service/Ping": {
+      "get": {
+        "summary": "Check the local service",
+        "responses": { "200": { "description": "Service information", "content": { "application/json": { "schema": { "type": "object" } } } } }
+      }
+    },
+    "/api/local-service/Echo": {
+      "get": {
+        "summary": "Echo a query parameter",
+        "parameters": [{ "name": "message", "in": "query", "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Echo response" } }
+      }
+    },
+    "/api/local-service/EchoPost": {
+      "post": {
+        "summary": "Echo a JSON body",
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object" } } } },
+        "responses": { "200": { "description": "Echo response" } }
+      }
+    }
+  }
+}

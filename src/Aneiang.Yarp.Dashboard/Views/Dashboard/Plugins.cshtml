@@ -1,0 +1,57 @@
+@using Aneiang.Yarp.Plugin.ProxyLog.Models
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Plugin Management" : "插件管理";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+<div id="plugins-app">
+    <div class="page-help-bar" id="plugins-help-bar">
+        <i class="bi bi-info-circle"></i>
+        <span class="help-text" data-i18n="page.help.plugins">插件为网关提供扩展能力（限流、WAF、重试等）。全局启用后，可在路由或集群上绑定使用。</span>
+        <button class="help-close" onclick="document.getElementById('plugins-help-bar').classList.add('collapsed')">&times;</button>
+    </div>
+    <div class="card-panel mb-4">
+        <div class="card-header">
+            <span><i class="bi bi-puzzle me-2" style="color:#8b5cf6;"></i><span data-i18n="plugin.title">插件管理</span></span>
+            <div class="card-header-actions">
+                <span id="plugin-refresh-time" class="refresh-badge"></span>
+                <button class="btn btn-sm btn-outline-secondary" onclick="PluginModule.resetAll()" data-i18n-title="plugin.resetAll" title="全部启用">
+                    <i class="bi bi-check-all"></i> <span data-i18n="plugin.resetAll">全部启用</span>
+                </button>
+                <button class="btn btn-sm btn-outline-secondary btn-icon-only" onclick="PluginModule.load()" data-i18n-title="index.btn.refresh" title="刷新" aria-label="刷新">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+        </div>
+        <div id="plugin-content" class="card-body">
+            <div class="loading-state">
+                <div class="loading-spinner"></div>
+                <div class="loading-text" data-i18n="plugin.loading">加载中...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+@{ var v = typeof(LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString(); }
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-plugins.js?v=@v"></script>
+
+@await Html.PartialAsync("_DashboardPageInit")
+
+<script>
+    (async function() {
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardStorage) DashboardStorage.init();
+        if (window.DashboardModals) DashboardModals.init();
+        if (window.DashboardEvents) DashboardEvents.setup();
+        if (window.DashboardApp && window.DashboardApp.modules && window.DashboardApp.modules.plugin) {
+            await DashboardApp.modules.plugin.init();
+        }
+        await PluginModule.load();
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
+</script>
+}

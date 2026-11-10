@@ -1,0 +1,9 @@
+{
+  "openapi.title": "API 文档",
+  "openapi.swagger": "Swagger UI",
+  "openapi.scalar": "Scalar",
+  "openapi.clusters": "已启用的服务",
+  "openapi.settings": "在现有集群编辑器中编辑 Metadata。OpenApi.Enabled 控制可见性；OpenApi.Settings 为使用 YarpOpenApi 集群选项的 JSON。保存或还原快照后，重新加载此页面。",
+  "openapi.disabled": "API 文档已禁用。请在网关主机中启用 Gateway:OpenApi 并配置文档访问权限。",
+  "openapi.split": "在 Split 模式下，文档通过 Dashboard 监听端口提供。API 调用使用 Proxy 端口；文档端口上的交互式请求可能不可用。"
+}

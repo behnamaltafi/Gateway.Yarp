@@ -1,0 +1,987 @@
+@{
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Overview" : "总览";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+    var prefix = ViewBag.DashboardRoutePrefix as string ?? "apigateway";
+}
+
+<style>
+    /* ========== Overview Page — Command Center Layout ========== */
+
+    /* Hero status bar */
+    .ov-hero {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 20px;
+        background: linear-gradient(135deg, var(--primary-color, #6366f1) 0%, #4f46e5 100%);
+        color: #fff;
+        border-radius: 10px;
+        margin-bottom: 16px;
+    }
+    .ov-hero-info {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        flex-wrap: wrap;
+        font-size: 13px;
+    }
+    .ov-hero-info > span {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        opacity: 0.92;
+    }
+    .ov-hero-info i { font-size: 14px; opacity: 0.8; }
+    .ov-hero-info strong { font-weight: 600; }
+    .ov-hero-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+    .ov-hero-actions .signalr-indicator { --dot-size: 8px; }
+    .ov-hero-actions .signalr-dot {
+        width: 8px; height: 8px; border-radius: 50%;
+    }
+    .ov-hero-btn {
+        background: rgba(255,255,255,0.15);
+        border: 1px solid rgba(255,255,255,0.25);
+        color: #fff;
+        border-radius: 6px;
+        padding: 5px 10px;
+        font-size: 13px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        transition: background 0.15s;
+    }
+    .ov-hero-btn:hover { background: rgba(255,255,255,0.28); }
+    .ov-hero-btn:active { background: rgba(255,255,255,0.12); }
+
+    /* KPI cards row */
+    .ov-kpi-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+        margin-bottom: 16px;
+    }
+    @@media (max-width: 992px) { .ov-kpi-row { grid-template-columns: repeat(2, 1fr); } }
+    @@media (max-width: 576px) { .ov-kpi-row { grid-template-columns: 1fr; } }
+
+    .ov-kpi {
+        background: var(--panel-bg, #fff);
+        border: 1px solid var(--border-color, #e2e8f0);
+        border-radius: 10px;
+        padding: 16px 18px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        transition: box-shadow 0.2s, border-color 0.2s;
+    }
+    .ov-kpi:hover {
+        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        border-color: var(--primary-light, #c7d2fe);
+    }
+    /* Whole card is the link (not just the icon) */
+    a.ov-kpi {
+        text-decoration: none;
+        color: inherit;
+        cursor: pointer;
+    }
+    a.ov-kpi:hover {
+        text-decoration: none;
+        color: inherit;
+    }
+    a.ov-kpi:focus-visible {
+        outline: 2px solid var(--primary-color, #4f46e5);
+        outline-offset: 2px;
+    }
+    .ov-kpi-icon {
+        width: 44px; height: 44px;
+        border-radius: 10px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 20px;
+        flex-shrink: 0;
+    }
+    .ov-kpi-body { flex: 1; min-width: 0; }
+    .ov-kpi-value {
+        font-size: 24px; font-weight: 700; line-height: 1.2;
+        color: var(--text-primary, #1e293b);
+    }
+    .ov-kpi-label {
+        font-size: 12px; color: var(--text-muted, #64748b);
+        margin-top: 2px;
+    }
+    .ov-kpi-trend { font-size: 11px; margin-top: 4px; }
+
+    /* Health ring (CSS conic-gradient) */
+    .ov-health-ring {
+        width: 52px; height: 52px;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        flex-shrink: 0;
+        position: relative;
+    }
+    .ov-health-ring::before {
+        content: '';
+        position: absolute;
+        inset: 5px;
+        border-radius: 50%;
+        background: var(--panel-bg, #fff);
+    }
+    .ov-health-ring-text {
+        position: relative;
+        font-size: 14px; font-weight: 700;
+        z-index: 1;
+    }
+    .ov-health-legend {
+        display: flex; gap: 8px; flex-wrap: wrap;
+        font-size: 11px; margin-top: 4px;
+    }
+    .ov-health-legend span { display: inline-flex; align-items: center; gap: 3px; }
+    .ov-health-legend .dot {
+        width: 7px; height: 7px; border-radius: 50%; display: inline-block;
+    }
+
+    /* Monitoring area: chart 2/3 + system 1/3 */
+    .ov-monitor-row {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+    @@media (max-width: 992px) { .ov-monitor-row { grid-template-columns: 1fr; } }
+
+    .ov-monitor-chart .card-panel { margin-bottom: 0; }
+    .ov-monitor-chart .card-body { padding: 12px 16px; }
+
+    /* System resource gauges */
+    .ov-sys-stack { display: flex; flex-direction: column; gap: 12px; }
+    .ov-sys-card {
+        background: var(--panel-bg, #fff);
+        border: 1px solid var(--border-color, #e2e8f0);
+        border-radius: 10px;
+        padding: 14px 16px;
+    }
+    .ov-sys-card-header {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 8px;
+    }
+    .ov-sys-card-title {
+        display: flex; align-items: center; gap: 6px;
+        font-size: 13px; font-weight: 600; color: var(--text-secondary, #475569);
+    }
+    .ov-sys-card-value { font-size: 13px; font-weight: 600; color: var(--text-primary, #1e293b); }
+    .ov-gauge {
+        height: 8px; border-radius: 4px;
+        background: var(--bg-secondary, #f1f5f9);
+        overflow: hidden;
+    }
+    .ov-gauge-fill {
+        height: 100%; border-radius: 4px;
+        transition: width 0.4s cubic-bezier(0.4,0,0.2,1);
+    }
+    .ov-sys-meta {
+        display: flex; gap: 16px; margin-top: 10px;
+        font-size: 12px; color: var(--text-muted, #64748b);
+    }
+    .ov-sys-meta span { display: inline-flex; align-items: center; gap: 4px; }
+
+    /* Risk panels */
+    .ov-risk-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+    @@media (max-width: 768px) { .ov-risk-row { grid-template-columns: 1fr; } }
+    .ov-risk-row .card-panel { margin-bottom: 0; height: 100%; }
+
+    /* Config preview */
+    .ov-config-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+    @@media (max-width: 768px) { .ov-config-row { grid-template-columns: 1fr; } }
+    .ov-config-row .card-panel { margin-bottom: 0; height: 100%; }
+
+    /* Quick actions footer */
+    .ov-quick-actions {
+        display: flex; flex-wrap: wrap; gap: 8px;
+        align-items: center; justify-content: center;
+        padding: 10px 16px;
+        background: var(--panel-bg, #fff);
+        border: 1px solid var(--border-color, #e2e8f0);
+        border-radius: 10px;
+    }
+    .ov-quick-actions .ov-qa-label {
+        font-size: 12px; color: var(--text-muted, #64748b);
+        margin-right: 4px;
+    }
+
+    /* Error bar */
+    .ov-error-bar {
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 16px;
+        background: #fef3cd;
+        border: 1px solid #fde68a;
+        border-radius: 8px;
+        margin-bottom: 12px;
+        font-size: 13px; color: #92400e;
+    }
+    .ov-error-bar i { font-size: 16px; }
+
+    /* Proxy config apply-failure alert bar (red, prominent) */
+    .ov-proxy-alert {
+        display: flex; align-items: flex-start; gap: 10px;
+        padding: 10px 16px;
+        background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+        border: 1px solid #fca5a5;
+        border-left: 4px solid #ef4444;
+        border-radius: 8px;
+        margin-bottom: 12px;
+        font-size: 13px; color: #991b1b;
+    }
+    .ov-proxy-alert > i.alert-icon {
+        font-size: 18px; color: #ef4444; margin-top: 1px; flex-shrink: 0;
+    }
+    .ov-proxy-alert-body { flex: 1; min-width: 0; }
+    .ov-proxy-alert-title { font-weight: 600; display: block; margin-bottom: 2px; }
+    .ov-proxy-alert-desc {
+        display: block; font-size: 12.5px; color: #b91c1c;
+        word-break: break-word; line-height: 1.4;
+    }
+    .ov-proxy-alert-meta { font-size: 11px; color: #b91c1c; opacity: .8; margin-top: 3px; }
+    .ov-proxy-alert-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .ov-proxy-alert-btn {
+        background: rgba(239,68,68,0.1); border: 1px solid #fca5a5; color: #991b1b;
+        border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer;
+        display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+    }
+    .ov-proxy-alert-btn:hover { background: rgba(239,68,68,0.2); }
+    .ov-proxy-alert-close {
+        background: none; border: none; color: #b91c1c; cursor: pointer;
+        font-size: 18px; line-height: 1; padding: 0 2px; opacity: .6;
+    }
+    .ov-proxy-alert-close:hover { opacity: 1; }
+    .ov-proxy-alert-detail {
+        background: #fff; border: 1px solid #fca5a5; border-top: none;
+        border-radius: 0 0 8px 8px; margin-top: -12px; margin-bottom: 12px;
+        padding: 8px 14px; font-size: 12.5px;
+    }
+    .ov-proxy-alert-detail .err-row {
+        display: flex; gap: 8px; padding: 6px 0;
+        border-bottom: 1px dashed #fee2e2;
+    }
+    .ov-proxy-alert-detail .err-row:last-child { border-bottom: none; }
+    .ov-proxy-alert-detail .err-tag {
+        font-size: 10.5px; font-weight: 600; padding: 1px 6px; border-radius: 4px;
+        height: fit-content; white-space: nowrap; flex-shrink: 0;
+    }
+    .ov-proxy-alert-detail .err-tag.cluster { background: #fef3c7; color: #92400e; }
+    .ov-proxy-alert-detail .err-tag.route { background: #dbeafe; color: #1e40af; }
+    .ov-proxy-alert-detail .err-tag.global { background: #f1f5f9; color: #475569; }
+    .ov-proxy-alert-detail .err-msg { color: #334155; line-height: 1.4; word-break: break-word; }
+    .ov-proxy-alert-detail .err-source { font-size: 10.5px; color: #94a3b8; margin-left: 4px; }
+
+    /* Help bar (compact) */
+    .ov-help {
+        display: flex; align-items: center; gap: 6px;
+        padding: 6px 14px;
+        background: var(--bg-secondary, #f8fafc);
+        border-radius: 6px;
+        margin-bottom: 12px;
+        font-size: 12px; color: var(--text-muted, #64748b);
+    }
+    .ov-help i { color: var(--primary-color, #6366f1); }
+    .ov-help .close { margin-left: auto; cursor: pointer; border: none; background: none; font-size: 16px; color: var(--text-muted, #94a3b8); }
+
+    /* Responsive */
+    @@media (max-width: 576px) {
+        .ov-hero { flex-direction: column; align-items: flex-start; }
+        .ov-hero-info { gap: 10px; }
+    }
+</style>
+
+<!-- Help bar -->
+<div class="ov-help" id="overview-help-bar">
+    <i class="bi bi-info-circle"></i>
+    <span data-i18n="page.help.overview">网关维护仪表盘总览，展示集群、路由、健康状态和实时流量。点击统计卡片可跳转到对应管理页面。</span>
+    <button class="close" onclick="document.getElementById('overview-help-bar').style.display='none'">&times;</button>
+</div>
+
+<!-- Proxy config apply-failure alert bar -->
+<div class="ov-proxy-alert" id="proxy-config-alert" role="alert" style="display:none;">
+    <i class="bi bi-exclamation-triangle-fill alert-icon"></i>
+    <div class="ov-proxy-alert-body">
+        <span class="ov-proxy-alert-title" id="proxy-alert-title" data-i18n="proxyConfig.alertTitle">代理配置应用失败</span>
+        <span class="ov-proxy-alert-desc" id="proxy-alert-desc"></span>
+        <span class="ov-proxy-alert-meta" id="proxy-alert-meta"></span>
+    </div>
+    <div class="ov-proxy-alert-actions">
+        <button type="button" class="ov-proxy-alert-btn" id="proxy-alert-toggle" onclick="toggleProxyAlertDetail()">
+            <i class="bi bi-list-ul"></i><span data-i18n="proxyConfig.viewDetails">查看详情</span>
+        </button>
+        <button type="button" class="ov-proxy-alert-close" onclick="document.getElementById('proxy-config-alert').style.display='none';document.getElementById('proxy-config-alert-detail').style.display='none';">&times;</button>
+    </div>
+</div>
+<div class="ov-proxy-alert-detail" id="proxy-config-alert-detail" style="display:none;"></div>
+
+<!-- Error bar -->
+<div class="ov-error-bar" id="overview-error-bar" role="alert" style="display:none;">
+    <i class="bi bi-exclamation-triangle"></i>
+    <strong id="overview-error-title"></strong>
+    <span id="overview-error-desc"></span>
+</div>
+
+<!-- ① Hero status bar -->
+<div class="ov-hero">
+    <div class="ov-hero-info">
+        <span><i class="bi bi-tag"></i><span data-i18n="index.label.version">版本</span> <strong id="info-version">-</strong></span>
+        <span><i class="bi bi-cloud"></i><span data-i18n="index.label.env">环境</span> <strong id="info-env">-</strong></span>
+        <span><i class="bi bi-play-circle"></i><span data-i18n="index.label.start">启动</span> <strong id="info-start">-</strong></span>
+        <span><i class="bi bi-clock-history"></i><span data-i18n="index.label.uptime">运行</span> <strong id="info-uptime">-</strong></span>
+        <span><i class="bi bi-memory"></i><span data-i18n="index.label.memory">内存</span> <strong id="info-memory">-</strong></span>
+        <span><i class="bi bi-pc-display"></i><span data-i18n="index.label.host">主机</span> <strong id="info-machine">-</strong></span>
+    </div>
+    <div class="ov-hero-actions">
+        <span id="signalr-status" class="signalr-indicator signalr-off" data-i18n-title="overview.signalr.disconnected" title="SignalR 断开">
+            <span class="signalr-dot"></span>
+        </span>
+        <button class="ov-hero-btn" onclick="overviewRefresh(this)" data-i18n-title="index.btn.refresh" title="刷新">
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+    </div>
+</div>
+
+<!-- ② Four KPI cards -->
+<div class="ov-kpi-row">
+    <!-- Clusters (whole card is the link) -->
+    <a class="ov-kpi" href="/@prefix/clusters">
+        <span class="ov-kpi-icon" style="background:#dbeafe;color:#2563eb;">
+            <i class="bi bi-diagram-3"></i>
+        </span>
+        <div class="ov-kpi-body">
+            <div class="ov-kpi-value" id="stat-clusters">-</div>
+            <div class="ov-kpi-label" data-i18n="index.stat.clusters">服务集群</div>
+            <div class="ov-kpi-trend"><span id="trend-clusters"><i class="bi bi-dash"></i> --</span></div>
+        </div>
+    </a>
+    <!-- Health (with ring) -->
+    <div class="ov-kpi">
+        <div class="ov-health-ring" id="health-ring" style="background:conic-gradient(#22c55e 0deg, #f59e0b 0deg, #ef4444 0deg, #e2e8f0 0deg);">
+            <span class="ov-health-ring-text" id="health-ring-text">0%</span>
+        </div>
+        <div class="ov-kpi-body">
+            <div class="ov-kpi-label" data-i18n="index.stat.health">健康状态</div>
+            <div class="ov-health-legend">
+                <span><span class="dot" style="background:#22c55e;"></span><span id="stat-healthy-count">0</span></span>
+                <span><span class="dot" style="background:#f59e0b;"></span><span id="stat-unknown-count">0</span></span>
+                <span><span class="dot" style="background:#ef4444;"></span><span id="stat-unhealthy-count">0</span></span>
+            </div>
+        </div>
+    </div>
+    <!-- Routes (whole card is the link) -->
+    <a class="ov-kpi" href="/@prefix/routes">
+        <span class="ov-kpi-icon" style="background:#fef3c7;color:#d97706;">
+            <i class="bi bi-signpost-split"></i>
+        </span>
+        <div class="ov-kpi-body">
+            <div class="ov-kpi-value" id="stat-routes">-</div>
+            <div class="ov-kpi-label" data-i18n="index.stat.routes">路由规则</div>
+            <div class="ov-kpi-trend"><span id="trend-routes"><i class="bi bi-dash"></i> --</span></div>
+        </div>
+    </a>
+    <!-- QPS -->
+    <div class="ov-kpi">
+        <div class="ov-kpi-icon" style="background:#ede9fe;color:#7c3aed;">
+            <i class="bi bi-lightning-charge"></i>
+        </div>
+        <div class="ov-kpi-body">
+            <div class="ov-kpi-value" id="stat-qps">-</div>
+            <div class="ov-kpi-label" data-i18n="overview.stat.qps">当前 QPS</div>
+            <div class="ov-kpi-trend"><span id="trend-qps"><i class="bi bi-dash"></i> --</span></div>
+        </div>
+    </div>
+</div>
+
+<!-- ③ Monitoring area: traffic chart (2/3) + system resources (1/3) -->
+<div class="ov-monitor-row">
+    <div class="ov-monitor-chart">
+        <div class="card-panel">
+            <div class="card-header">
+                <span><i class="bi bi-graph-up-arrow me-2"></i><span data-i18n="overview.chart.traffic">实时流量趋势 (QPS)</span></span>
+                <div class="card-header-actions">
+                    <span class="pulse-dot me-1"></span>
+                    <span class="badge bg-success" id="current-qps">0 req/s</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div style="height:240px;position:relative;">
+                    <canvas id="traffic-chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="ov-sys-stack">
+        <!-- System health badge -->
+        <div class="ov-sys-card">
+            <div class="ov-sys-card-header">
+                <div class="ov-sys-card-title">
+                    <i class="bi bi-activity" style="color:#10b981;"></i>
+                    <span data-i18n="overview.systemHealth">系统健康</span>
+                </div>
+                <span class="badge bg-success" id="sys-health-status" data-i18n="overview.healthy">健康</span>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted,#64748b);">
+                <i class="bi bi-database text-primary"></i>
+                <span id="sys-db-status" data-i18n="overview.connected">已连接</span>
+            </div>
+        </div>
+        <!-- CPU -->
+        <div class="ov-sys-card">
+            <div class="ov-sys-card-header">
+                <div class="ov-sys-card-title"><i class="bi bi-cpu text-warning"></i><span data-i18n="overview.cpuUsage">CPU 使用率</span></div>
+                <span class="ov-sys-card-value" id="sys-cpu-value">--</span>
+            </div>
+            <div class="ov-gauge">
+                <div class="ov-gauge-fill" id="sys-cpu-bar" style="width:0%;background:#f59e0b;"></div>
+            </div>
+        </div>
+        <!-- Memory -->
+        <div class="ov-sys-card">
+            <div class="ov-sys-card-header">
+                <div class="ov-sys-card-title"><i class="bi bi-memory text-info"></i><span data-i18n="overview.memUsage">内存使用</span></div>
+                <span class="ov-sys-card-value" id="sys-mem-value">--</span>
+            </div>
+            <div class="ov-gauge">
+                <div class="ov-gauge-fill" id="sys-mem-bar" style="width:0%;background:#3b82f6;"></div>
+            </div>
+        </div>
+        <!-- GC & Threads -->
+        <div class="ov-sys-card">
+            <div class="ov-sys-card-header">
+                <div class="ov-sys-card-title"><i class="bi bi-hdd-network text-success"></i><span data-i18n="overview.gcCount">GC 次数</span></div>
+            </div>
+            <div class="ov-sys-meta">
+                <span><i class="bi bi-arrow-repeat"></i><span id="sys-gc-value">--</span></span>
+                <span><i class="bi bi-diagram-2"></i><span data-i18n="overview.threadCount">线程</span> <span id="sys-thread-value">--</span></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ④ Risk panels: error routes + slow clusters -->
+<div class="ov-risk-row">
+    <div class="card-panel">
+        <div class="card-header">
+            <span><i class="bi bi-exclamation-triangle me-2" style="color:#ef4444;"></i><span data-i18n="overview.top.errorRoutes">Top 异常路由</span></span>
+            <span class="badge bg-danger" id="error-routes-count">0</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped-custom align-middle mb-0" style="font-size:13px;">
+                    <thead>
+                        <tr>
+                            <th style="width:50%;padding:10px 16px;"><span data-i18n="overview.top.th.route">路由</span></th>
+                            <th style="width:25%;padding:10px 16px;"><span data-i18n="overview.top.th.errors">错误数</span></th>
+                            <th style="width:25%;padding:10px 16px;"><span data-i18n="overview.top.th.rate">错误率</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="error-routes-tbody">
+                        <tr><td colspan="3" class="text-center py-4"><div class="empty-state"><div class="empty-state-icon"><i class="bi bi-shield-check"></i></div><div class="empty-state-title" data-i18n="overview.top.empty">暂无数据</div><div class="empty-state-desc" data-i18n="overview.top.emptyDesc">一切正常，没有异常路由</div></div></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="card-panel">
+        <div class="card-header">
+            <span><i class="bi bi-stopwatch me-2" style="color:#f59e0b;"></i><span data-i18n="overview.top.slowClusters">Top 延迟集群</span></span>
+            <span class="badge bg-warning text-dark" id="slow-clusters-count">0</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped-custom align-middle mb-0" style="font-size:13px;">
+                    <thead>
+                        <tr>
+                            <th style="width:50%;padding:10px 16px;"><span data-i18n="overview.top.th.cluster">集群</span></th>
+                            <th style="width:25%;padding:10px 16px;"><span data-i18n="overview.top.th.avgLatency">平均延迟</span></th>
+                            <th style="width:25%;padding:10px 16px;"><span data-i18n="overview.top.th.p99">P99延迟</span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="slow-clusters-tbody">
+                        <tr><td colspan="3" class="text-center py-4"><div class="empty-state"><div class="empty-state-icon"><i class="bi bi-speedometer2"></i></div><div class="empty-state-title" data-i18n="overview.top.empty">暂无数据</div><div class="empty-state-desc" data-i18n="overview.top.latencyEmptyDesc">延迟数据采集中</div></div></td></tr>
+                        </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ⑤ Config preview: clusters + routes -->
+<div class="ov-config-row">
+    <div class="card-panel" id="cluster-preview-panel">
+        <div class="card-header">
+            <span><i class="bi bi-hdd-stack me-2" style="color:#3b82f6;"></i><span data-i18n="index.cluster.title">服务集群概览</span></span>
+            <a href="/@prefix/clusters" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-arrow-right"></i> <span data-i18n="home.viewAll">查看全部</span>
+            </a>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover table-striped-custom align-middle" style="table-layout:fixed;width:100%">
+                <thead>
+                    <tr>
+                        <th style="width:50%"><span data-i18n="index.cluster.th.name">集群名称</span></th>
+                        <th style="width:50%"><span data-i18n="index.cluster.th.health">健康状态</span></th>
+                    </tr>
+                </thead>
+                <tbody id="cluster-preview-tbody">
+                    <tr><td colspan="2" class="text-center py-4">
+                        <div style="padding:8px 16px;">
+                            <div class="skeleton skeleton-line medium"></div>
+                            <div class="skeleton skeleton-line short"></div>
+                            <div class="skeleton skeleton-line long"></div>
+                        </div>
+                    </td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-panel" id="route-preview-panel">
+        <div class="card-header">
+            <span><i class="bi bi-signpost-split me-2" style="color:#eab308;"></i><span data-i18n="index.route.title">路由规则概览</span></span>
+            <a href="/@prefix/routes" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-arrow-right"></i> <span data-i18n="home.viewAll">查看全部</span>
+            </a>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover table-striped-custom align-middle" style="table-layout:fixed;width:100%">
+                <thead>
+                    <tr>
+                        <th style="width:50%"><span data-i18n="index.route.th.name">路由名称</span></th>
+                        <th style="width:50%"><span data-i18n="index.route.th.cluster">关联集群</span></th>
+                    </tr>
+                </thead>
+                <tbody id="route-preview-tbody">
+                    <tr><td colspan="2" class="text-center py-4">
+                        <div style="padding:8px 16px;">
+                            <div class="skeleton skeleton-line medium"></div>
+                            <div class="skeleton skeleton-line short"></div>
+                            <div class="skeleton skeleton-line long"></div>
+                        </div>
+                    </td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ⑥ Quick actions (compact footer) -->
+<div class="ov-quick-actions mb-3">
+    <span class="ov-qa-label"><i class="bi bi-lightning-charge" style="color:#f59e0b;"></i> <span data-i18n="overview.quickActions">快捷操作</span></span>
+    <a href="/@prefix/clusters" class="btn btn-outline-primary btn-sm"><i class="bi bi-diagram-3 me-1"></i><span data-i18n="overview.action.addCluster">添加集群</span></a>
+    <a href="/@prefix/routes" class="btn btn-outline-primary btn-sm"><i class="bi bi-signpost-split me-1"></i><span data-i18n="overview.action.addRoute">添加路由</span></a>
+    <a href="/@prefix/logs" class="btn btn-outline-info btn-sm"><i class="bi bi-journal-text me-1"></i><span data-i18n="overview.action.viewLogs">查看日志</span></a>
+    <a href="/@prefix/traffic" class="btn btn-outline-success btn-sm"><i class="bi bi-graph-up-arrow me-1"></i><span data-i18n="overview.action.viewTraffic">流量监控</span></a>
+    <a href="/@prefix/plugins" class="btn btn-outline-secondary btn-sm"><i class="bi bi-puzzle me-1"></i><span data-i18n="overview.action.managePlugins">插件管理</span></a>
+</div>
+
+@section Scripts {
+@await Html.PartialAsync("_DashboardPageInit")
+
+<!-- Chart.js for traffic chart -->
+<script src="/_content/Aneiang.Yarp.Dashboard/js/vendor/chart.umd.min.js"></script>
+<!-- SignalR client for real-time overview push -->
+<script src="/_content/Aneiang.Yarp.Dashboard/js/vendor/signalr.min.js"></script>
+
+<!-- Home module (for stat bar — version, clusters, routes, QPS) -->
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-home.js"></script>
+<!-- Overview stats module (traffic chart + HTTP snapshot fallback) -->
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-overview.js"></script>
+
+<script>
+    var _signalrConnected = false;
+    var _signalrConnection = null;
+    var _pollingFallbackId = null;
+    var _prefix = '@(prefix)';
+
+    (async function() {
+        try {
+            if (window.DashboardApi) DashboardApi.init();
+
+            if (window.DashboardApp?.modules?.home?.init) await DashboardApp.modules.home.init();
+            if (window.DashboardApp?.modules?.stats?.init) await DashboardApp.modules.stats.init();
+
+            try {
+                const [info, clusters, routes, traffic] = await Promise.all([
+                    DashboardApi.endpoints.getInfo().catch(() => null),
+                    DashboardApi.endpoints.getClusters().catch(() => []),
+                    DashboardApi.endpoints.getRoutes().catch(() => []),
+                    (window.DashboardApi.endpoints.getTrafficData?.(15) || Promise.resolve(null)).catch(() => null)
+                ]);
+
+                if (info) {
+                    const set = (id, val) => { const el = document.getElementById(id); if (el && val != null) el.textContent = val; };
+                    set('info-version', (info.version || '-').split('+')[0]);
+                    set('info-env', info.environment);
+                    set('info-start', info.startTime);
+                    set('info-uptime', info.uptime);
+                    set('info-memory', info.memoryMb != null ? info.memoryMb.toFixed(1) + ' MB' : null);
+                    set('info-machine', info.machineName);
+
+                    if (window.DashboardState) {
+                        DashboardState.set('data.info', info);
+                        DashboardState.set('data.clusters', clusters || []);
+                        DashboardState.set('data.routes', routes || []);
+                    }
+                }
+
+                const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+                setText('stat-clusters', (clusters || []).length);
+                // Cluster-level health: count clusters, not destinations
+                let healthy = 0, unknown = 0, unhealthy = 0;
+                (clusters || []).forEach(c => {
+                    if ((c.unhealthyCount || 0) > 0) unhealthy++;
+                    else if ((c.healthyCount || 0) > 0) healthy++;
+                    else unknown++;
+                });
+                setText('stat-healthy-count', healthy);
+                setText('stat-unknown-count', unknown);
+                setText('stat-unhealthy-count', unhealthy);
+                updateHealthRing(healthy, unknown, unhealthy);
+                setText('stat-routes', (routes || []).length);
+                if (traffic && traffic.currentQps != null) {
+                    setText('stat-qps', traffic.currentQps);
+                }
+            } catch (e) {
+                console.error('[Overview] Direct API failed:', e);
+                showOverviewError();
+            }
+
+            if (window.DashboardApp?.modules?.home?.loadInfo) await DashboardApp.modules.home.loadInfo();
+            if (window.DashboardApp?.modules?.stats?.loadStats) await DashboardApp.modules.stats.loadStats();
+
+            document.dispatchEvent(new CustomEvent('dashboard:ready'));
+            initSignalR();
+        } catch (err) {
+            console.error('[Overview] Init failed:', err);
+        }
+    })();
+
+    /** Update the CSS conic-gradient health ring from healthy/unknown/unhealthy counts. */
+    function updateHealthRing(healthy, unknown, unhealthy) {
+        var total = healthy + unknown + unhealthy;
+        var ring = document.getElementById('health-ring');
+        var text = document.getElementById('health-ring-text');
+        if (!ring || !text) return;
+
+        var pct = total > 0 ? Math.round((healthy / total) * 100) : 0;
+        text.textContent = pct + '%';
+
+        if (total === 0) {
+            ring.style.background = 'conic-gradient(#e2e8f0 0deg, #e2e8f0 360deg)';
+            return;
+        }
+        var hDeg = (healthy / total) * 360;
+        var uDeg = (unknown / total) * 360;
+        var unDeg = (unhealthy / total) * 360;
+        ring.style.background = 'conic-gradient(' +
+            '#22c55e 0deg ' + hDeg + 'deg, ' +
+            '#f59e0b ' + hDeg + 'deg ' + (hDeg + uDeg) + 'deg, ' +
+            '#ef4444 ' + (hDeg + uDeg) + 'deg ' + (hDeg + uDeg + unDeg) + 'deg, ' +
+            '#e2e8f0 ' + (hDeg + uDeg + unDeg) + 'deg 360deg)';
+    }
+
+    function initSignalR() {
+        if (!window.signalR) {
+            console.warn('[Overview] SignalR client not loaded, starting polling fallback');
+            startPollingFallback();
+            return;
+        }
+
+        var hubUrl = '/' + _prefix + '/hubs/overview';
+        var connection = new signalR.HubConnectionBuilder()
+            .withUrl(hubUrl)
+            .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+            .build();
+
+        _signalrConnection = connection;
+
+        connection.on('OverviewUpdate', function(snapshot) {
+            if (snapshot) updateOverviewFromSnapshot(snapshot);
+        });
+
+        connection.onreconnected(function() {
+            console.log('[Overview] SignalR reconnected');
+            setSignalRStatus(true);
+            stopPollingFallback();
+        });
+
+        connection.onreconnecting(function() {
+            console.warn('[Overview] SignalR reconnecting...');
+            setSignalRStatus(false);
+            startPollingFallback();
+        });
+
+        connection.onclose(function() {
+            console.warn('[Overview] SignalR closed');
+            setSignalRStatus(false);
+            startPollingFallback();
+        });
+
+        connection.start()
+            .then(function() {
+                console.log('[Overview] SignalR connected to', hubUrl);
+                setSignalRStatus(true);
+                stopPollingFallback();
+            })
+            .catch(function(err) {
+                console.warn('[Overview] SignalR unavailable, falling back to polling:', err.message);
+                setSignalRStatus(false);
+                startPollingFallback();
+            });
+    }
+
+    function setSignalRStatus(connected) {
+        _signalrConnected = connected;
+        var el = document.getElementById('signalr-status');
+        if (!el) return;
+        el.classList.remove('signalr-on', 'signalr-off');
+        el.classList.add(connected ? 'signalr-on' : 'signalr-off');
+        el.title = connected ? (window.__ ? __('overview.signalr.connected') : 'SignalR Connected') : (window.__ ? __('overview.signalr.disconnected') : 'SignalR Disconnected');
+    }
+
+    function updateOverviewFromSnapshot(s) {
+        var setText = function(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; };
+
+        // Proxy config apply-failure alert (red banner at the top)
+        updateProxyConfigAlert(s.proxyConfigHealth);
+
+        setText('stat-clusters', s.clusterCount);
+        var healthy = s.healthyCount || 0;
+        var unknown = s.unknownCount || 0;
+        var unhealthy = s.unhealthyCount || 0;
+        setText('stat-healthy-count', healthy);
+        setText('stat-unknown-count', unknown);
+        setText('stat-unhealthy-count', unhealthy);
+        updateHealthRing(healthy, unknown, unhealthy);
+        setText('stat-routes', s.routeCount);
+        if (s.currentQps != null) setText('stat-qps', s.currentQps);
+
+        var qpsBadge = document.getElementById('current-qps');
+        if (qpsBadge && s.currentQps != null) qpsBadge.textContent = s.currentQps + ' req/s';
+
+        if (s.cpuUsage != null) {
+            setText('sys-cpu-value', s.cpuUsage + '%');
+            var cpuBar = document.getElementById('sys-cpu-bar');
+            if (cpuBar) cpuBar.style.width = Math.min(100, s.cpuUsage) + '%';
+        }
+        if (s.memoryMb != null) {
+            setText('sys-mem-value', s.memoryMb + ' MB');
+            var memBar = document.getElementById('sys-mem-bar');
+            if (memBar) memBar.style.width = Math.min(100, Math.round(s.memoryMb / 80)) + '%';
+        }
+        if (s.gcCount != null) setText('sys-gc-value', s.gcCount);
+        if (s.threadCount != null) setText('sys-thread-value', s.threadCount);
+
+        var healthBadge = document.getElementById('sys-health-status');
+        if (healthBadge) {
+            var hasIssue = s.unhealthyCount > 0 || s.cpuUsage > 80;
+            healthBadge.className = 'badge ' + (hasIssue ? 'bg-warning text-dark' : 'bg-success');
+            healthBadge.textContent = hasIssue ? (window.__ ? __('overview.attention') : 'Attention') : (window.__ ? __('overview.healthy') : 'Healthy');
+        }
+
+        var errTbody = document.getElementById('error-routes-tbody');
+        var errBadge = document.getElementById('error-routes-count');
+        if (errTbody && s.topErrorRoutes) {
+            if (errBadge) errBadge.textContent = s.topErrorRoutes.length;
+            if (s.topErrorRoutes.length === 0) {
+                errTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-4">' +
+                    (window.I18N && I18N['overview.top.empty'] ? I18N['overview.top.empty'] : '暂无数据') + '</td></tr>';
+            } else {
+                var html = '';
+                s.topErrorRoutes.forEach(function(r) {
+                    var cls = r.errorRate >= 50 ? 'text-danger' : r.errorRate >= 20 ? 'text-warning' : 'text-muted';
+                    html += '<tr>' +
+                        '<td style="padding:10px 16px;"><code>' + escapeHtml(r.routeId) + '</code></td>' +
+                        '<td style="padding:10px 16px;"><span class="badge bg-danger">' + r.errorCount + '</span></td>' +
+                        '<td style="padding:10px 16px;"><span class="' + cls + '">' + r.errorRate + '%</span></td>' +
+                        '</tr>';
+                });
+                errTbody.innerHTML = html;
+            }
+        }
+
+        var slowTbody = document.getElementById('slow-clusters-tbody');
+        var slowBadge = document.getElementById('slow-clusters-count');
+        if (slowTbody && s.topSlowClusters) {
+            if (slowBadge) slowBadge.textContent = s.topSlowClusters.length;
+            if (s.topSlowClusters.length === 0) {
+                slowTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-4">' +
+                    (window.I18N && I18N['overview.top.empty'] ? I18N['overview.top.empty'] : '暂无数据') + '</td></tr>';
+            } else {
+                var slowHtml = '';
+                s.topSlowClusters.forEach(function(c) {
+                    var p99Cls = c.p99Latency >= 1000 ? 'text-danger' : c.p99Latency >= 500 ? 'text-warning' : 'text-muted';
+                    slowHtml += '<tr>' +
+                        '<td style="padding:10px 16px;"><code>' + escapeHtml(c.clusterId) + '</code></td>' +
+                        '<td style="padding:10px 16px;">' + c.avgLatency.toFixed(0) + 'ms</td>' +
+                        '<td style="padding:10px 16px;"><span class="' + p99Cls + '">' + c.p99Latency.toFixed(0) + 'ms</span></td>' +
+                        '</tr>';
+                });
+                slowTbody.innerHTML = slowHtml;
+            }
+        }
+
+        if (window.DashboardApp?.modules?.stats?.pushTrafficPoint) {
+            DashboardApp.modules.stats.pushTrafficPoint(s.currentQps || 0);
+        }
+    }
+
+    /** Show/hide the proxy-config apply-failure alert bar from the snapshot health summary. */
+    function updateProxyConfigAlert(health) {
+        var bar = document.getElementById('proxy-config-alert');
+        var detail = document.getElementById('proxy-config-alert-detail');
+        if (!bar) return;
+
+        if (health && health.status === 'error') {
+            bar.style.display = '';
+            var descEl = document.getElementById('proxy-alert-desc');
+            var metaEl = document.getElementById('proxy-alert-meta');
+            var first = (health.firstError || {});
+            var where = first.clusterId || first.routeId || '';
+            var msg = first.message || (window.__ ? __('proxyConfig.unknownError') : '配置应用失败');
+            if (descEl) descEl.textContent = (where ? '[' + where + '] ' : '') + msg;
+            if (metaEl) {
+                var countLabel = window.__ ? __('proxyConfig.errorCountLabel') : '项错误';
+                var parts = [];
+                if (health.errorCount > 0) parts.push(health.errorCount + ' ' + countLabel);
+                var ts = formatProxyAlertTime(health.lastErrorAt);
+                if (ts) parts.push(ts);
+                metaEl.textContent = parts.join(' · ');
+            }
+        } else {
+            bar.style.display = 'none';
+            if (detail) detail.style.display = 'none';
+        }
+    }
+
+    /** Toggle the expandable error-list detail panel (fetches full error list on first open). */
+    async function toggleProxyAlertDetail() {
+        var detail = document.getElementById('proxy-config-alert-detail');
+        if (!detail) return;
+        if (detail.style.display !== 'none' && detail.innerHTML) {
+            detail.style.display = 'none';
+            return;
+        }
+        try {
+            var result = await DashboardApi.endpoints.getProxyConfigErrors();
+            var errors = (result && result.errors) || [];
+            var html = '';
+            if (errors.length === 0) {
+                html = '<div class="text-muted text-center py-2">' +
+                    (window.__ ? __('proxyConfig.noErrors') : '暂无错误') + '</div>';
+            } else {
+                errors.forEach(function(e) {
+                    var tag, tagCls;
+                    if (e.clusterId) { tag = e.clusterId; tagCls = 'cluster'; }
+                    else if (e.routeId) { tag = e.routeId; tagCls = 'route'; }
+                    else { tag = window.__ ? __('proxyConfig.global') : '全局'; tagCls = 'global'; }
+                    var src = e.source ? '<span class="err-source">(' + escapeHtml(e.source) + ')</span>' : '';
+                    html += '<div class="err-row">' +
+                        '<span class="err-tag ' + tagCls + '">' + escapeHtml(tag) + '</span>' +
+                        '<span class="err-msg">' + escapeHtml(e.message || '') + src + '</span>' +
+                        '</div>';
+                });
+            }
+            detail.innerHTML = html;
+            detail.style.display = '';
+        } catch (err) {
+            console.warn('[Overview] load proxy config errors failed:', err);
+            detail.innerHTML = '<div class="text-danger text-center py-2">' +
+                (window.__ ? __('proxyConfig.loadFailed') : '加载失败') + '</div>';
+            detail.style.display = '';
+        }
+    }
+
+    function formatProxyAlertTime(value) {
+        if (!value) return '';
+        try {
+            var d = (value instanceof Date) ? value : new Date(value);
+            if (isNaN(d.getTime())) return '';
+            return window.DashboardI18n && DashboardI18n.formatTime ? DashboardI18n.formatTime(d) : d.toLocaleString();
+        } catch (_) { return ''; }
+    }
+
+    window.toggleProxyAlertDetail = toggleProxyAlertDetail;
+    window.__overviewApplySnapshot = updateOverviewFromSnapshot;
+    window.__overviewShowError = showOverviewError;
+    window.__overviewHideError = hideOverviewError;
+
+    function showOverviewError() {
+        var bar = document.getElementById('overview-error-bar');
+        if (!bar) return;
+        var title = document.getElementById('overview-error-title');
+        var desc = document.getElementById('overview-error-desc');
+        if (title) title.textContent = window.__ ? __('overview.loadFailed') : '实时数据加载失败';
+        if (desc) desc.textContent = window.__ ? __('overview.loadFailedDesc') : '无法获取网关实时快照，页面可能在降级轮询模式下运行，请检查网络连接。';
+        bar.style.display = '';
+    }
+
+    function hideOverviewError(showToast) {
+        var bar = document.getElementById('overview-error-bar');
+        if (bar) bar.style.display = 'none';
+        if (showToast && window.DashboardModals?.showSuccess && window.__) {
+            DashboardModals.showSuccess(__('overview.loadRecovered'));
+        }
+    }
+
+    function escapeHtml(text) {
+        if (!text) return '';
+        var d = document.createElement('div');
+        d.textContent = text;
+        return d.innerHTML;
+    }
+
+    function startPollingFallback() {
+        if (_pollingFallbackId) return;
+        _pollingFallbackId = setInterval(async function() {
+            if (_signalrConnected) { stopPollingFallback(); return; }
+            try {
+                if (window.DashboardApp?.modules?.home?.loadInfo) await DashboardApp.modules.home.loadInfo();
+                if (window.DashboardApp?.modules?.stats?.loadStats) await DashboardApp.modules.stats.loadStats();
+            } catch (e) {
+                console.warn('[Overview] polling refresh failed:', e);
+                showOverviewError();
+            }
+        }, 10000);
+    }
+
+    function stopPollingFallback() {
+        if (_pollingFallbackId) {
+            clearInterval(_pollingFallbackId);
+            _pollingFallbackId = null;
+        }
+    }
+
+    window.overviewRefresh = async function(btn) {
+        var originalHTML = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i>';
+        btn.disabled = true;
+        try {
+            await Promise.all([
+                window.DashboardApp?.modules?.home?.loadInfo?.(),
+                window.DashboardApp?.modules?.stats?.loadStats?.()
+            ]);
+        } finally {
+            btn.innerHTML = originalHTML;
+            btn.disabled = false;
+        }
+    };
+</script>
+}

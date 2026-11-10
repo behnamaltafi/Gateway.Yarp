@@ -1,0 +1,2349 @@
+/**
+ * Dashboard Routes Module - Route management and configuration
+ */
+(function() {
+    'use strict';
+
+    const RoutesModule = {
+        name: 'routes',
+        initialized: false,
+
+        init: async function() {
+            if (this.initialized) return;
+
+            this.setupEvents();
+
+            this.initialized = true;
+        },
+
+        loadRoutes: async function(forceReload) {
+            const self = this;
+            try {
+                const container = window.DashboardDOM.safe('#route-tbody');
+                if (!container) return;
+
+                const cached = window.DashboardState.get('data.routes');
+
+                // Use cached data if already loaded and not forcing reload
+                if (!forceReload && Array.isArray(cached) && cached.length > 0) {
+                    window.DashboardState.set('data.routes', cached);
+                    // Ensure clusters are also loaded for Add Route modal
+                    if (!window.DashboardState.get('data.clusters')?.length) {
+                        await this.ensureClustersLoaded();
+                    }
+                    this.renderRoutes();
+                    this._renderConfigAlert();
+                    return;
+                }
+
+                window.DashboardDOM.showLoading(container, __('index.route.loading'));
+                if (window.DashboardLoading) window.DashboardLoading.tableProgress(window.DashboardDOM.safe('#route-table-view'), true);
+
+                // Load routes, clusters (for Add Route modal) and proxy-config apply
+                // errors (for the hint bar + per-row markers) in parallel.
+                const [routes, clusters, errInfo] = await Promise.all([
+                    window.DashboardApi.endpoints.getRoutes(),
+                    window.DashboardApi.endpoints.getClusters(),
+                    window.DashboardProxyConfigAlert ? window.DashboardProxyConfigAlert.load('route') : Promise.resolve(null)
+                ]);
+
+                window.DashboardState.set('data.routes', routes || []);
+                window.DashboardState.set('data.clusters', clusters || []);
+                if (errInfo) {
+                    window.DashboardState.set('data.routeConfigErrors', errInfo.byId);
+                    window.DashboardState.set('data.routeConfigHealth', errInfo.health);
+                }
+
+                this.renderRoutes();
+                this._renderConfigAlert();
+
+            } catch (error) {
+                console.error('[Routes] Load failed:', error);
+                const container = window.DashboardDOM.safe('#route-tbody');
+                if (container) {
+                    if (window.DashboardLoading) {
+                        window.DashboardLoading.retryableError(container, __('index.route.loadFailed') + '：' + (error.message || error), function() { return self.loadRoutes(true); });
+                    } else {
+                        window.DashboardDOM.showError(container, __('index.route.loadFailed'));
+                    }
+                }
+            } finally {
+                if (window.DashboardLoading) window.DashboardLoading.tableProgress(window.DashboardDOM.safe('#route-table-view'), false);
+            }
+        },
+
+        // Render (or hide) the proxy-config apply-error hint bar from cached health.
+        _renderConfigAlert: function() {
+            var bar = window.DashboardDOM.safe('#route-config-alert');
+            if (!bar || !window.DashboardProxyConfigAlert) return;
+            var self = this;
+            var health = window.DashboardState.get('data.routeConfigHealth');
+            window.DashboardProxyConfigAlert.renderHintBar(bar, health, {
+                onRefresh: function() { return self.loadRoutes(true); }
+            });
+        },
+
+        ensureClustersLoaded: async function() {
+            try {
+                const clusters = await window.DashboardApi.endpoints.getClusters();
+                window.DashboardState.set('data.clusters', clusters || []);
+            } catch (e) {
+                console.warn('[Routes] Failed to load clusters:', e);
+            }
+        },
+
+        renderRoutes: function() {
+            const state = window.DashboardState;
+            const routes = state.getFilteredRoutes();
+                    
+            // Render filter toolbar (only once, then update counts)
+            this.renderFilterToolbar();
+
+            // Render table view
+            const tbody = window.DashboardDOM.safe('#route-tbody');
+            if (tbody) {
+                window.DashboardDOM.clear(tbody);
+                        
+                if (routes.length === 0) {
+                    const emptyRow = document.createElement('tr');
+                    emptyRow.innerHTML = `
+                        <td colspan="8" class="text-center py-5">
+                            <div class="empty-state">
+                                <i class="bi bi-signpost-split" style="font-size: 2.5rem; opacity: 0.4; color: #64748b;"></i>
+                                <div class="mt-3 text-muted" style="font-size: 14px;">${__('index.route.empty')}</div>
+                                <div class="mt-2 text-muted small">${__('index.route.emptyHelp')}</div>
+                            </div>
+                        </td>
+                    `; 
+                    tbody.appendChild(emptyRow);
+                } else {
+                    this.renderRouteRows(routes, tbody);
+                }
+            }
+        
+            // Update refresh time
+            this.updateRefreshTime();
+        },
+        
+        renderFilterToolbar: function() {
+            const container = window.DashboardDOM.safe('#route-filter-container');
+            if (!container) return;
+        
+            // Check if toolbar already exists - only update counts, don't recreate
+            const existingToolbar = document.getElementById('route-search-input');
+            if (existingToolbar) {
+                this._updateFilterCounts();
+                return;
+            }
+                    
+            // First time - create toolbar
+            const state = window.DashboardState;
+            const allRoutes = state.get('data.routes') || [];
+            const methodCounts = this._getMethodCounts(allRoutes);
+            const sourceCounts = this._getSourceCounts(allRoutes);
+            const clusterCounts = this._getClusterCounts(allRoutes);
+            const clusterList = this._getClusterList();
+
+            var clusterOptionsHtml = '<option value="">' + (__('index.route.cluster.all') || 'All Clusters') + ' (' + clusterCounts.all + ')</option>';
+            clusterList.forEach(function(cid) {
+                var cnt = clusterCounts[cid] || 0;
+                clusterOptionsHtml += '<option value="' + cid + '">' + window.DashboardUtils.escapeHtml(cid) + ' (' + cnt + ')</option>';
+            });
+            // Include routes without cluster
+            var noneCount = clusterCounts['(none)'] || 0;
+            if (noneCount > 0) {
+                clusterOptionsHtml += '<option value="(none)">' + (__('index.route.cluster.none') || 'No Cluster') + ' (' + noneCount + ')</option>';
+            }
+        
+            container.innerHTML = `
+                <div class="card-body py-2 border-bottom">
+                    <div class="row g-2 align-items-center">
+                        <div class="col">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-light border-end-0">
+                                    <i class="bi bi-search text-muted"></i>
+                                </span>
+                                <input type="text" class="form-control border-start-0" id="route-search-input" 
+                                       placeholder="${__('index.route.search')}" 
+                                       autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <select class="form-select form-select-sm" id="route-cluster-select" style="width:150px;">
+                                ${clusterOptionsHtml}
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <select class="form-select form-select-sm" id="route-method-select" style="width:100px;">
+                                <option value="all">${__('index.route.method.all')} (${methodCounts.all})</option>
+                                <option value="GET">GET (${methodCounts.GET})</option>
+                                <option value="POST">POST (${methodCounts.POST})</option>
+                                <option value="PUT">PUT (${methodCounts.PUT})</option>
+                                <option value="DELETE">DELETE (${methodCounts.DELETE})</option>
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <select class="form-select form-select-sm" id="route-source-select" style="width:110px;">
+                                <option value="all">${__('index.source.all')} (${sourceCounts.all})</option>
+                                <option value="config">${__('index.source.config')} (${sourceCounts.config})</option>
+                                <option value="dynamic">${__('index.source.dynamic')} (${sourceCounts.dynamic})</option>
+                                <option value="dashboard">${__('index.source.dashboard')} (${sourceCounts.dashboard})</option>
+                                <option value="auto-register">${__('index.source.autoRegister')} (${sourceCounts['auto-register']})</option>
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <span class="text-muted small" id="route-search-result"></span>
+                        </div>
+                        <div class="col-auto">
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-secondary" id="route-refresh-btn" title="${__('index.btn.refresh')}">
+                                    <i class="bi bi-arrow-clockwise"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" id="route-clear-btn" title="${__('index.search.clear')}" style="display:none;">
+                                    <i class="bi bi-x-circle"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" id="route-add-btn" title="${__('modal.addRoute') || 'Add Route'}">
+                                    <i class="bi bi-plus-circle"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        
+            // Bind event handlers (only once)
+            this._bindFilterEvents();
+        },
+                
+        _updateFilterCounts: function() {
+            const state = window.DashboardState;
+            const allRoutes = state.get('data.routes') || []; 
+            const filteredRoutes = state.getFilteredRoutes();
+            const searchValue = state.get('filters.routes.search') || ''; 
+            const methodValue = state.get('filters.routes.method') || 'all';
+            const clusterValue = state.get('filters.routes.clusterId') || '';
+            
+            // Update display count in header
+            const displayCountEl = document.getElementById('route-display-count');
+            const totalCountEl = document.getElementById('route-total-count');
+            if (displayCountEl) displayCountEl.textContent = filteredRoutes.length;
+            if (totalCountEl) totalCountEl.textContent = allRoutes.length;
+                    
+            // Update result count
+            const resultEl = document.getElementById('route-search-result');
+            if (resultEl) {
+                if (searchValue || methodValue !== 'all' || clusterValue) {
+                    resultEl.textContent = `${filteredRoutes.length}/${allRoutes.length}`;
+                    resultEl.style.display = '';
+                } else {
+                    resultEl.textContent = '';
+                }
+            }
+                    
+            // Update clear button visibility
+            const clearBtn = document.getElementById('route-clear-btn');
+            if (clearBtn) {
+                clearBtn.style.display = (searchValue || clusterValue) ? '' : 'none';
+            }
+                    
+            // Update method select value (don't recreate)
+            const methodSelect = document.getElementById('route-method-select');
+            if (methodSelect && methodSelect.value !== methodValue) {
+                methodSelect.value = methodValue;
+            }
+
+            // Update cluster select value
+            const clusterSelect = document.getElementById('route-cluster-select');
+            if (clusterSelect && clusterSelect.value !== clusterValue) {
+                clusterSelect.value = clusterValue;
+            }
+        },
+                        
+        _getMethodCounts: function(routes) {
+            const counts = { all: routes.length, GET: 0, POST: 0, PUT: 0, DELETE: 0 }; 
+            routes.forEach(route => {
+                if (route.methods && Array.isArray(route.methods)) {
+                    route.methods.forEach(method => {
+                        if (counts[method] !== undefined) {
+                            counts[method]++; 
+                        }
+                    });
+                }
+            });
+            return counts;
+        },
+        
+        _getSourceCounts: function(routes) {
+            return {
+                all: routes.length,
+                'config': routes.filter(r => (r.source || 'config') === 'config').length,
+                'dynamic': routes.filter(r => r.source === 'dynamic').length,
+                'dashboard': routes.filter(r => r.source === 'dashboard').length,
+                'auto-register': routes.filter(r => r.source === 'auto-register').length
+            };
+        },
+
+        _getClusterCounts: function(routes) {
+            var counts = { all: routes.length };
+            routes.forEach(function(route) {
+                var cid = route.clusterId || '(none)';
+                counts[cid] = (counts[cid] || 0) + 1;
+            });
+            return counts;
+        },
+
+        _getClusterList: function() {
+            var clusters = window.DashboardState.get('data.clusters') || [];
+            return clusters.map(function(c) { return c.clusterId; }).filter(Boolean);
+        },
+                        
+        _bindFilterEvents: function() {
+            const self = this;
+            
+            // Search input - optimized debounced live search
+            const searchInput = document.getElementById('route-search-input');
+            if (searchInput) {
+                let searchTimeout = null;
+                let lastValue = '';
+                
+                searchInput.addEventListener('input', function(e) {
+                    const value = e.target.value;
+                    
+                    // Clear existing timeout
+                    clearTimeout(searchTimeout);
+                    
+                    // Empty value or first character - immediate response
+                    if (!value || !lastValue) {
+                        window.DashboardState.set('filters.routes.search', value);
+                        self.renderRoutes();
+                    } else {
+                        // Debounced for subsequent typing
+                        searchTimeout = setTimeout(function() {
+                            window.DashboardState.set('filters.routes.search', value);
+                            self.renderRoutes();
+                        }, 200); // Reduced from 300ms to 200ms for better responsiveness
+                    }
+                    
+                    lastValue = value;
+                    
+                    // Update clear button visibility immediately
+                    const clearBtn = document.getElementById('route-clear-btn');
+                    if (clearBtn) {
+                        clearBtn.style.display = value ? '' : 'none';
+                    }
+                });
+
+                // Handle Escape key to clear search
+                searchInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape') {
+                        searchInput.value = '';
+                        window.DashboardState.set('filters.routes.search', '');
+                        self.renderRoutes();
+                        searchInput.blur();
+                    }
+                });
+            }
+            
+            // Clear button
+            const clearBtn = document.getElementById('route-clear-btn');
+            if (clearBtn) {
+                clearBtn.addEventListener('click', function() {
+                    const input = document.getElementById('route-search-input');
+                    if (input) {
+                        input.value = '';
+                        input.focus();
+                    }
+                    window.DashboardState.set('filters.routes.search', '');
+                    window.DashboardState.set('filters.routes.method', 'all');
+                    window.DashboardState.set('filters.routes.source', 'all');
+                    window.DashboardState.set('filters.routes.clusterId', '');
+                    self.renderRoutes();
+                    
+                    // Update clear button
+                    clearBtn.style.display = 'none';
+                });
+            }
+            
+            // Refresh button
+            const refreshBtn = document.getElementById('route-refresh-btn');
+            if (refreshBtn) {
+                refreshBtn.addEventListener('click', function() {
+                    if (window.DashboardLoading) {
+                        window.DashboardLoading.withButton(refreshBtn, __('loading.refreshing'), function() { return self.loadRoutes(true); });
+                    } else {
+                        self.loadRoutes(true);
+                    }
+                });
+            }
+            
+            // Method select - immediate filter
+            const methodSelect = document.getElementById('route-method-select');
+            if (methodSelect) {
+                methodSelect.addEventListener('change', function(e) {
+                    window.DashboardState.set('filters.routes.method', e.target.value);
+                    self.renderRoutes();
+                });
+            }
+            
+            // Source select - immediate filter
+            const sourceSelect = document.getElementById('route-source-select');
+            if (sourceSelect) {
+                sourceSelect.addEventListener('change', function(e) {
+                    window.DashboardState.set('filters.routes.source', e.target.value);
+                    self.renderRoutes();
+                });
+            }
+
+            // Cluster select - immediate filter
+            const clusterSelect = document.getElementById('route-cluster-select');
+            if (clusterSelect) {
+                clusterSelect.addEventListener('change', function(e) {
+                    window.DashboardState.set('filters.routes.clusterId', e.target.value);
+                    self.renderRoutes();
+                });
+            }
+            
+            // Add button
+            const addBtn = document.getElementById('route-add-btn');
+            if (addBtn) {
+                addBtn.disabled = false;
+                addBtn.removeAttribute('aria-disabled');
+                addBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    self.showAddModal();
+                });
+            }
+        },
+
+        renderRouteCards: function(routes) {
+            var container = document.getElementById('route-cards-view');
+            if (!container) return;
+
+            if (routes.length === 0) {
+                container.innerHTML = '<div style="text-align:center;padding:48px 0;">' +
+                    '<i class="bi bi-signpost-split" style="font-size:2.5rem;opacity:0.4;color:#64748b;display:block;margin-bottom:12px;"></i>' +
+                    '<div style="font-size:14px;color:#64748b;">' + __('index.route.empty') + '</div>' +
+                    '<div style="font-size:12px;color:#94a3b8;margin-top:6px;">' + __('index.route.emptyHelp') + '</div></div>';
+                return;
+            }
+
+            // Sort by order
+            var sortedRoutes = routes.slice().sort(function(a, b) {
+                var orderA = a.order !== null && a.order !== undefined ? a.order : 999999;
+                var orderB = b.order !== null && b.order !== undefined ? b.order : 999999;
+                return orderA - orderB;
+            });
+
+            // Use DocumentFragment for better performance
+            var fragment = document.createDocumentFragment();
+            var gridContainer = document.createElement('div');
+            gridContainer.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:16px;';
+
+            // Batch render for large lists
+            if (sortedRoutes.length > 50) {
+                this._renderCardsBatched(sortedRoutes, gridContainer, function() {
+                    container.innerHTML = '';
+                    fragment.appendChild(gridContainer);
+                    container.appendChild(fragment);
+                });
+                return;
+            }
+
+            // Standard render for smaller lists
+            sortedRoutes.forEach(function(route) {
+                var card = this.createRouteCardDOM(route);
+                if (card) gridContainer.appendChild(card);
+            }.bind(this));
+
+            container.innerHTML = '';
+            fragment.appendChild(gridContainer);
+            container.appendChild(fragment);
+        },
+
+        _renderCardsBatched: function(routes, container, onComplete) {
+            var batchSize = 30;
+            var index = 0;
+            var total = routes.length;
+
+            var renderBatch = function() {
+                var end = Math.min(index + batchSize, total);
+                var fragment = document.createDocumentFragment();
+
+                for (; index < end; index++) {
+                    var card = RoutesModule.createRouteCardDOM(routes[index]);
+                    if (card) fragment.appendChild(card);
+                }
+
+                container.appendChild(fragment);
+
+                if (index < total) {
+                    requestAnimationFrame(renderBatch);
+                } else {
+                    if (onComplete) onComplete();
+                }
+            };
+
+            renderBatch();
+        },
+
+        _renderRouteCardsLegacy: function(routes) {
+            var container = document.getElementById('route-cards-view');
+            if (!container) return;
+
+            if (routes.length === 0) {
+                container.innerHTML = '<div style="text-align:center;padding:48px 0;">' +
+                    '<i class="bi bi-signpost-split" style="font-size:2.5rem;opacity:0.4;color:#64748b;display:block;margin-bottom:12px;"></i>' +
+                    '<div style="font-size:14px;color:#64748b;">' + __('index.route.empty') + '</div>' +
+                    '<div style="font-size:12px;color:#94a3b8;margin-top:6px;">' + __('index.route.emptyHelp') + '</div></div>';
+                return;
+            }
+
+            // Sort by order
+            var sortedRoutes = routes.slice().sort(function(a, b) {
+                var orderA = a.order !== null && a.order !== undefined ? a.order : 999999;
+                var orderB = b.order !== null && b.order !== undefined ? b.order : 999999;
+                return orderA - orderB;
+            });
+
+            var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:16px;">';
+
+            sortedRoutes.forEach(function(route) {
+                var pathText = route.match && route.match.path || '-';
+                var methods = route.match && route.match.methods || [];
+                var hostText = route.match && route.match.hosts && route.match.hosts.length > 0 ? route.match.hosts[0] : '';
+                var hasTransforms = route.transforms && route.transforms.length > 0;
+                var hasAuthorization = route.authorizationPolicy || route.authorizationPolicy === '';
+
+                // Determine card accent color by cluster
+                var accentColor = route.clusterId ? '#3b82f6' : '#94a3b8';
+
+                html += '<div style="border:1px solid var(--border-color);border-left:4px solid ' + accentColor +
+                    ';border-radius:12px;background:var(--card-bg);overflow:hidden;transition:box-shadow 0.2s,transform 0.15s;cursor:pointer;"' +
+                    ' onmouseover="this.style.boxShadow=\'0 4px 12px rgba(0,0,0,0.08)\';this.style.transform=\'translateY(-1px)\'"' +
+                    ' onmouseout="this.style.boxShadow=\'none\';this.style.transform=\'none\'"' +
+                    ' onclick="window.DashboardApp.modules.routes.toggleRoute(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')"' +
+                    ' data-route-id="' + (route.routeId || '') + '">';
+
+                // Card header
+                html += '<div style="padding:14px 16px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;justify-content:space-between;gap:8px;">';
+                html += '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;">';
+
+                // Order badge
+                if (route.order !== null && route.order !== undefined) {
+                    html += '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:' +
+                        (route.order < 100 ? '#fef3c7' : route.order < 1000 ? '#e0e7ff' : '#f1f5f9') +
+                        ';color:' + (route.order < 100 ? '#92400e' : route.order < 1000 ? '#3730a3' : '#64748b') +
+                        ';font-size:12px;font-weight:700;flex-shrink:0;">' + route.order + '</span>';
+                } else {
+                    html += '<span style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:#f1f5f9;color:#94a3b8;font-size:12px;flex-shrink:0;">-</span>';
+                }
+
+                html += '<div style="min-width:0;flex:1;">';
+                html += '<div style="font-weight:600;font-size:14px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.routeId) : route.routeId) + '">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.displayName || route.routeKey || route.routeId) : (route.displayName || route.routeKey || route.routeId)) + (route.enabled === false ? ' <span style="font-size:10px;font-weight:600;color:#dc2626;background:rgba(239,68,68,0.08);padding:2px 6px;border-radius:4px;border:1px solid rgba(239,68,68,0.2);margin-left:4px;">' + (window.__ && __("route.disabledBadge") || '已禁用') + '</span>' : '') + '</div>';
+                if (route.displayName || route.routeUid || route.routeKey) {
+                    html += '<div style="font-size:11px;color:#94a3b8;margin-top:2px;display:flex;gap:6px;flex-wrap:wrap;">';
+                    if (route.routeUid) {
+                        html += '<span title="UID"><i class="bi bi-fingerprint me-1"></i>' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.routeUid) : route.routeUid) + '</span>';
+                    }
+                    html += '<span style="color:#cbd5e1;">|</span>';
+                    if (route.routeKey) {
+                        html += '<span title="Key"><i class="bi bi-key me-1"></i>' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.routeKey) : route.routeKey) + '</span>';
+                    }
+                    html += '</div>';
+                }
+                html += '<div style="display:flex;align-items:center;gap:6px;margin-top:3px;">';
+                html += '<span>' + (window.DashboardUtils ? DashboardUtils.createSourceBadge(route.source) : route.source || '-') + '</span>';
+                if (hostText) {
+                    html += '<span style="color:#cbd5e1;">|</span><span style="font-size:11px;color:#64748b;"><i class="bi bi-globe me-1"></i>' + (window.DashboardUtils ? DashboardUtils.escapeHtml(hostText) : hostText) + '</span>';
+                }
+                var indicators = [];
+                if (hasTransforms) indicators.push('<i class="bi bi-arrow-left-right" style="color:#8b5cf6;" title="Transforms"></i>');
+                if (hasAuthorization) indicators.push('<i class="bi bi-shield-lock" style="color:#f59e0b;" title="Authorization"></i>');
+                if (indicators.length > 0) {
+                    html += '<span style="color:#cbd5e1;">|</span><span style="display:inline-flex;gap:4px;">' + indicators.join('') + '</span>';
+                }
+                html += '</div></div></div>';
+
+                // Action buttons
+                var isEn2 = route.enabled !== false;
+                html += '<div class="btn-group" style="flex-shrink:0;" onclick="event.stopPropagation()">';
+                html += '<button class="btn btn-sm btn-outline-' + (isEn2 ? 'success' : 'secondary') + '" onclick="event.stopPropagation();window.DashboardApp.modules.routes.toggleRouteEnabled(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\',' + !isEn2 + ')" title="' + (isEn2 ? (window.__ && __("route.disable")) : (window.__ && __("route.enable"))) + '"><i class="bi bi-toggle-' + (isEn2 ? 'on' : 'off') + '"></i></button>';
+                html += '<button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation();window.DashboardApp.modules.routes.showEditModal(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + (window.__ && __("index.route.edit")) + '"><i class="bi bi-pencil"></i></button>';
+                html += '<button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation();window.DashboardApp.modules.routes.deleteRoute(\'' + (route.routeId || '').replace(/'/g, "\\'") + '\')" title="' + (window.__ && __("index.route.delete")) + '"><i class="bi bi-trash"></i></button>';
+                html += '</div></div>';
+
+                // Card body
+                html += '<div style="padding:12px 16px;">';
+
+                // Path
+                html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">';
+                html += '<span style="display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:6px;background:#eff6ff;color:#3b82f6;font-size:12px;flex-shrink:0;"><i class="bi bi-signpost-2"></i></span>';
+                html += '<code style="font-size:13px;color:var(--text-secondary);background:var(--bg-secondary,#f8fafc);padding:3px 8px;border-radius:4px;word-break:break-all;border:1px solid var(--border-color);">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(pathText) : pathText) + '</code>';
+                html += '</div>';
+
+                // Cluster + Methods row
+                html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">';
+
+                // Cluster
+                if (route.clusterId) {
+                    html += '<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;font-size:12px;font-weight:500;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;"><i class="bi bi-diagram-3"></i>' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.clusterId) : route.clusterId) + '</span>';
+                }
+
+                // Methods
+                if (methods.length > 0) {
+                    methods.forEach(function(m) {
+                        var mColors = { 'GET': '#22c55e', 'POST': '#3b82f6', 'PUT': '#f59e0b', 'DELETE': '#ef4444', 'PATCH': '#8b5cf6', 'HEAD': '#64748b', 'OPTIONS': '#94a3b8' };
+                        var mBg = { 'GET': '#f0fdf4', 'POST': '#eff6ff', 'PUT': '#fffbeb', 'DELETE': '#fef2f2', 'PATCH': '#f5f3ff', 'HEAD': '#f8fafc', 'OPTIONS': '#f8fafc' };
+                        var mBorder = { 'GET': '#bbf7d0', 'POST': '#bfdbfe', 'PUT': '#fde68a', 'DELETE': '#fecaca', 'PATCH': '#ddd6fe', 'HEAD': '#e2e8f0', 'OPTIONS': '#e2e8f0' };
+                        var c = mColors[m] || '#64748b';
+                        html += '<span style="display:inline-flex;align-items:center;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:700;font-family:monospace;background:' + (mBg[m] || '#f8fafc') + ';color:' + c + ';border:1px solid ' + (mBorder[m] || '#e2e8f0') + ';">' + m + '</span>';
+                    });
+                } else {
+                    html += '<span style="font-size:11px;color:#94a3b8;">ANY</span>';
+                }
+
+                html += '</div>';
+                html += '</div></div>';
+            });
+
+            html += '</div>';
+            container.innerHTML = html;
+        },
+
+        renderRouteRows: function(routes, tbody) {
+            if (!tbody) return;
+
+            // Sort by order
+            const sortedRoutes = [...routes].sort((a, b) => {
+                const orderA = a.order !== null && a.order !== undefined ? a.order : 999999;
+                const orderB = b.order !== null && b.order !== undefined ? b.order : 999999;
+                return orderA - orderB;
+            });
+
+            // Large lists are rendered in animation-frame batches to avoid blocking the UI.
+            if (sortedRoutes.length > 300) {
+                this._renderRouteRowsBatched(sortedRoutes, tbody);
+                return;
+            }
+
+            // Check if this is first render or we should use diff
+            const existingRowCount = tbody.querySelectorAll('tr[data-route-id]').length;
+            const isFirstRender = existingRowCount === 0;
+            
+            // Use diff rendering for updates with many items
+            if (!isFirstRender && existingRowCount > 10) {
+                this._renderRouteRowsDiff(sortedRoutes, tbody);
+            } else {
+                this._renderRouteRowsStandard(sortedRoutes, tbody);
+            }
+        },
+
+        _renderRouteRowsStandard: function(routes, tbody) {
+            window.DashboardDOM.clear(tbody);
+            const fragment = document.createDocumentFragment();
+
+            routes.forEach(function(route) {
+                var isExpanded = (window.DashboardState.get('ui.expandedRoutes') || new Set()).has(route.routeId);
+                var rows = this.createRouteRows(route, isExpanded);
+                rows.forEach(function(row) { fragment.appendChild(row); });
+            }.bind(this));
+
+            tbody.appendChild(fragment);
+        },
+
+        _renderRouteRowsBatched: function(routes, tbody) {
+            window.DashboardDOM.clear(tbody);
+
+            const expandedRoutes = window.DashboardState.get('ui.expandedRoutes') || new Set();
+            const batchSize = 80;
+            let index = 0;
+
+            const renderBatch = function() {
+                const fragment = document.createDocumentFragment();
+                const end = Math.min(index + batchSize, routes.length);
+
+                for (; index < end; index++) {
+                    const route = routes[index];
+                    const isExpanded = expandedRoutes.has(route.routeId);
+                    const rows = this.createRouteRows(route, isExpanded);
+                    rows.forEach(function(row) { fragment.appendChild(row); });
+                }
+
+                tbody.appendChild(fragment);
+
+                if (index < routes.length) {
+                    requestAnimationFrame(renderBatch);
+                }
+            }.bind(this);
+
+            requestAnimationFrame(renderBatch);
+        },
+
+        _renderRouteRowsDiff: function(routes, tbody) {
+            const startTime = performance.now();
+            
+            // Get existing rows grouped by routeId
+            const existingRows = new Map();
+            tbody.querySelectorAll('tr[data-route-id]').forEach(row => {
+                const routeId = row.dataset.routeId;
+                if (!existingRows.has(routeId)) {
+                    existingRows.set(routeId, []);
+                }
+                existingRows.get(routeId).push(row);
+            });
+
+            // Track which routeIds should exist
+            const newRouteIds = new Set(routes.map(r => r.routeId));
+            
+            // Remove rows that no longer exist
+            existingRows.forEach((rows, routeId) => {
+                if (!newRouteIds.has(routeId)) {
+                    rows.forEach(row => row.remove());
+                }
+            });
+
+            // Build new order and update/create rows
+            const rowOrder = [];
+
+            routes.forEach(function(route) {
+                const routeRows = existingRows.get(route.routeId);
+                var isExpanded = (window.DashboardState.get('ui.expandedRoutes') || new Set()).has(route.routeId);
+
+                if (routeRows && routeRows.length > 0) {
+                    // Reuse existing rows
+                    const mainRow = routeRows[0];
+                    const detailRow = routeRows[1];
+                    
+                    // Update main row content (check for changes)
+                    this._updateRouteRowContent(mainRow, route, isExpanded);
+                    
+                    if (isExpanded && !detailRow) {
+                        // Need to add detail row
+                        const newDetailRow = this.createRouteDetailRow(route);
+                        newDetailRow.dataset.routeId = route.routeId;
+                        rowOrder.push(mainRow, newDetailRow);
+                    } else if (!isExpanded && detailRow) {
+                        // Need to remove detail row
+                        detailRow.remove();
+                        rowOrder.push(mainRow);
+                    } else {
+                        // Same structure
+                        rowOrder.push(mainRow);
+                        if (detailRow) {
+                            detailRow.dataset.routeId = route.routeId;
+                            rowOrder.push(detailRow);
+                        }
+                    }
+                } else {
+                    // Create new rows
+                    var rows = this.createRouteRows(route, isExpanded);
+                    rows.forEach(row => rowOrder.push(row));
+                }
+            }.bind(this));
+
+            // Reorder rows in DOM efficiently
+            rowOrder.forEach(function(row) {
+                tbody.appendChild(row);
+            });
+
+            const endTime = performance.now();
+        },
+
+        _updateRouteRowContent: function(row, route, isExpanded) {
+            // Update expand icon
+            const expandIcon = row.querySelector('.row-expand-icon');
+            if (expandIcon) {
+                expandIcon.classList.toggle('expanded', isExpanded);
+            }
+
+            // Sync proxy-config apply-error marker in the name cell. Diff rendering
+            // reuses rows across refreshes, so the marker must be added/removed
+            // here to stay in sync with the latest error map.
+            if (window.DashboardProxyConfigAlert) {
+                var nameStrong = row.querySelector('strong');
+                var nameDiv = nameStrong ? nameStrong.parentNode : null;
+                var errMap = window.DashboardState.get('data.routeConfigErrors') || {};
+                window.DashboardProxyConfigAlert.syncMarker(nameDiv, errMap[route.routeId] || null);
+            }
+        },
+
+        createRouteRows: function(route, isExpanded) {
+            var rows = [];
+
+            // Main row
+            var mainTr = this.createRouteMainRow(route, isExpanded);
+            rows.push(mainTr);
+
+            // Expanded detail row
+            if (isExpanded) {
+                var detailTr = this.createRouteDetailRow(route);
+                rows.push(detailTr);
+            }
+
+            return rows;
+        },
+
+        createRouteMainRow: function(route, isExpanded) {
+            var isDisabled = route.enabled === false;
+            var tr = window.DashboardDOM.create('tr', {
+                className: 'route-row' + (isDisabled ? ' route-disabled' : ''),
+                attributes: { 'data-route-id': route.routeId },
+                style: {
+                    cursor: 'pointer',
+                    opacity: isDisabled ? '0.5' : '1',
+                    filter: isDisabled ? 'grayscale(0.7)' : 'none'
+                }
+            });
+
+            // Batch select checkbox
+            var tdSelect = window.DashboardDOM.create('td', {
+                style: { width: '36px', verticalAlign: 'middle', textAlign: 'center' }
+            });
+            var checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'form-check-input route-row-checkbox';
+            checkbox.value = route.routeId;
+            checkbox.checked = RoutesModule._selectedRoutes && RoutesModule._selectedRoutes.has(route.routeId);
+            checkbox.onclick = function(e) { e.stopPropagation(); RoutesModule.toggleSelect(route.routeId, this.checked); };
+            tdSelect.appendChild(checkbox);
+            tr.appendChild(tdSelect);
+
+            // Expand icon
+            var tdExpand = window.DashboardDOM.create('td', {
+                style: { width: '36px', verticalAlign: 'middle', textAlign: 'center' }
+            });
+            var expandIcon = window.DashboardDOM.create('i', {
+                className: 'bi bi-chevron-right row-expand-icon' + (isExpanded ? ' expanded' : '')
+            });
+            tdExpand.appendChild(expandIcon);
+            tr.appendChild(tdExpand);
+
+            // Order
+            var tdOrder = window.DashboardDOM.create('td', {
+                style: { width: '80px', verticalAlign: 'middle', textAlign: 'center' }
+            });
+            if (route.order !== null && route.order !== undefined) {
+                var orderSpan = document.createElement('span');
+                orderSpan.className = 'priority-badge';
+                if (route.order < 50) orderSpan.classList.add('priority-high');
+                else if (route.order < 100) orderSpan.classList.add('priority-medium');
+                else orderSpan.classList.add('priority-low');
+                orderSpan.textContent = route.order;
+                tdOrder.appendChild(orderSpan);
+            } else {
+                tdOrder.innerHTML = '<span class="priority-badge priority-none">-</span>';
+            }
+            tr.appendChild(tdOrder);
+
+            // Route name
+            var tdName = window.DashboardDOM.create('td', {
+                style: { overflow: 'hidden' }
+            });
+            var nameDiv = document.createElement('div');
+            nameDiv.style.cssText = 'display:flex;align-items:center;gap:6px;';
+            var nameStrong = document.createElement('strong');
+            nameStrong.style.cssText = 'font-size:14px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px;';
+            nameStrong.textContent = route.routeId;
+            nameStrong.title = route.routeId;
+            nameDiv.appendChild(nameStrong);
+
+            // Proxy-config apply-error marker (if this route failed to apply)
+            var routeErrMap = window.DashboardState.get('data.routeConfigErrors') || {};
+            var routeErr = routeErrMap[route.routeId];
+            if (routeErr && window.DashboardProxyConfigAlert) {
+                nameDiv.appendChild(window.DashboardProxyConfigAlert.createMarker(routeErr));
+            }
+
+            var sourceSpan = document.createElement('span');
+            sourceSpan.innerHTML = this.createSourceBadge(route.source);
+            nameDiv.appendChild(sourceSpan);
+            // Indicators (transforms, auth)
+            var indicators = [];
+            if (route.transforms && route.transforms.length > 0) indicators.push('<i class="bi bi-arrow-left-right" style="color:#8b5cf6;font-size:12px;" title="Transforms"></i>');
+            if (route.authorizationPolicy || route.authorizationPolicy === '') indicators.push('<i class="bi bi-shield-lock" style="color:#f59e0b;font-size:12px;" title="Authorization"></i>');
+            if (route.metadata && (route.metadata['Policy:Id'] || route.metadata['Policy:Name'])) indicators.push('<i class="bi bi-shield-check" style="color:#0ea5e9;font-size:12px;" title="' + (__('index.route.policyBadge') || 'Policy') + '"></i>');
+            if (indicators.length > 0) {
+                var indSpan = document.createElement('span');
+                indSpan.style.cssText = 'display:inline-flex;gap:3px;';
+                indSpan.innerHTML = indicators.join('');
+                nameDiv.appendChild(indSpan);
+            }
+            var nameCopyBtn = this.createCopyButton(route.routeId);
+            nameDiv.appendChild(nameCopyBtn);
+            tdName.appendChild(nameDiv);
+            tr.appendChild(tdName);
+
+            // Path
+            var tdPath = window.DashboardDOM.create('td', {
+                style: { overflow: 'hidden', minWidth: '200px' }
+            });
+            var pathText = route.match && route.match.path || '-';
+            var pathDiv = document.createElement('div');
+            pathDiv.style.cssText = 'display:flex;align-items:center;gap:6px;';
+            var pathCode = document.createElement('code');
+            pathCode.style.cssText = 'font-size:13px;background:var(--bg-secondary,#f8fafc);padding:3px 8px;border-radius:4px;border:1px solid var(--border-color);word-break:break-all;';
+            pathCode.textContent = pathText;
+            pathDiv.appendChild(pathCode);
+            var pathCopyBtn = this.createCopyButton(route.match && route.match.path || '');
+            pathDiv.appendChild(pathCopyBtn);
+            tdPath.appendChild(pathDiv);
+            tr.appendChild(tdPath);
+
+            // Cluster
+            var tdCluster = window.DashboardDOM.create('td', {
+                style: { width: '110px', verticalAlign: 'middle', overflow: 'hidden' }
+            });
+            if (route.clusterId) {
+                var clusterDiv = document.createElement('div');
+                clusterDiv.style.cssText = 'display:flex;align-items:center;gap:4px;';
+                var clusterBadge = document.createElement('span');
+                clusterBadge.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:5px;font-size:12px;font-weight:600;background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;white-space:nowrap;max-width:92px;overflow:hidden;text-overflow:ellipsis;';
+                clusterBadge.innerHTML = '<i class="bi bi-diagram-3" style="font-size:11px;flex-shrink:0;"></i><span style="overflow:hidden;text-overflow:ellipsis;">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.clusterId) : route.clusterId) + '</span>';
+                clusterBadge.title = route.clusterId;
+                clusterDiv.appendChild(clusterBadge);
+                tdCluster.appendChild(clusterDiv);
+            } else {
+                tdCluster.innerHTML = '<span class="text-muted">-</span>';
+            }
+            tr.appendChild(tdCluster);
+
+            // Methods
+            var tdMethods = window.DashboardDOM.create('td', {
+                style: { width: '90px', verticalAlign: 'middle' }
+            });
+            var methods = route.match && route.match.methods || [];
+            var methDiv = document.createElement('div');
+            methDiv.style.cssText = 'display:flex;align-items:center;gap:3px;flex-wrap:wrap;';
+            if (methods.length > 0) {
+                var mColors = { 'GET': '#22c55e', 'POST': '#3b82f6', 'PUT': '#f59e0b', 'DELETE': '#ef4444', 'PATCH': '#8b5cf6', 'HEAD': '#64748b', 'OPTIONS': '#94a3b8' };
+                var mBg = { 'GET': '#f0fdf4', 'POST': '#eff6ff', 'PUT': '#fffbeb', 'DELETE': '#fef2f2', 'PATCH': '#f5f3ff', 'HEAD': '#f8fafc', 'OPTIONS': '#f8fafc' };
+                var mBorder = { 'GET': '#bbf7d0', 'POST': '#bfdbfe', 'PUT': '#fde68a', 'DELETE': '#fecaca', 'PATCH': '#ddd6fe', 'HEAD': '#e2e8f0', 'OPTIONS': '#e2e8f0' };
+                methods.forEach(function(m) {
+                    var methSpan = document.createElement('span');
+                    var c = mColors[m] || '#64748b';
+                    methSpan.style.cssText = 'display:inline-flex;align-items:center;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700;font-family:monospace;background:' + (mBg[m] || '#f8fafc') + ';color:' + c + ';border:1px solid ' + (mBorder[m] || '#e2e8f0') + ';';
+                    methSpan.textContent = m;
+                    methDiv.appendChild(methSpan);
+                });
+            } else {
+                var anySpan = document.createElement('span');
+                anySpan.className = 'text-muted';
+                anySpan.style.cssText = 'font-size:12px;';
+                anySpan.textContent = 'ANY';
+                methDiv.appendChild(anySpan);
+            }
+            tdMethods.appendChild(methDiv);
+            tr.appendChild(tdMethods);
+
+            // Actions
+            var tdActions = window.DashboardDOM.create('td', {
+                style: { width: '132px', verticalAlign: 'middle', textAlign: 'center' }
+            });
+            tdActions.appendChild(this.createActionButtons(route));
+            tr.appendChild(tdActions);
+
+            // Click to expand
+            tr.addEventListener('click', function(e) {
+                if (e.target.closest('.copy-btn') || e.target.closest('.btn-group')) return;
+                this.toggleRoute(route.routeId);
+            }.bind(this));
+
+            return tr;
+        },
+
+        createOrderBadge: function(order) {
+            const displayOrder = (order !== null && order !== undefined) ? order : '-';
+            
+            // Priority levels: High (< 50), Medium (50-100), Low (> 100), None
+            let cssClass, iconClass;
+            if (order !== null && order !== undefined) {
+                if (order < 50) {
+                    cssClass = 'priority-high';
+                    iconClass = 'bi-arrow-up-circle-fill';
+                } else if (order < 100) {
+                    cssClass = 'priority-medium';
+                    iconClass = 'bi-arrow-right-circle-fill';
+                } else {
+                    cssClass = 'priority-low';
+                    iconClass = 'bi-arrow-down-circle-fill';
+                }
+            } else {
+                cssClass = 'priority-none';
+                iconClass = 'bi-dash-circle';
+            }
+            
+            const badge = window.DashboardDOM.create('span', {
+                className: `priority-badge ${cssClass}`
+            });
+            
+            const icon = window.DashboardDOM.create('i', {
+                className: `bi ${iconClass}`
+            });
+            badge.appendChild(icon);
+            badge.appendChild(document.createTextNode(' ' + displayOrder));
+            
+            return badge;
+        },
+
+        createMethodBadge: function(method) {
+            const methodMap = {
+                'GET': { css: 'bg-success', icon: 'bi-arrow-down-circle-fill' },
+                'POST': { css: 'bg-primary', icon: 'bi-plus-circle-fill' },
+                'PUT': { css: 'bg-info', icon: 'bi-pencil-circle-fill' },
+                'DELETE': { css: 'bg-danger', icon: 'bi-trash-circle-fill' },
+                'PATCH': { css: 'bg-warning text-dark', icon: 'bi-gear-circle-fill' }
+            }; 
+                    
+            const config = methodMap[method] || { css: 'bg-secondary', icon: 'bi-circle-fill' };
+                    
+            const badge = window.DashboardDOM.create('span', {
+                className: `badge ${config.css} me-1`,
+                style: { fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }
+            });
+                    
+            const icon = window.DashboardDOM.create('i', {
+                className: `bi ${config.icon}`
+            });
+            badge.appendChild(icon);
+            badge.appendChild(document.createTextNode(' ' + method));
+                    
+            return badge;
+        },
+
+        createActionButtons: function(route) {
+            const container = window.DashboardDOM.create('div', {
+                className: 'btn-group'
+            });
+
+            // Edit button
+            const editBtn = window.DashboardDOM.create('button', {
+                className: 'btn btn-sm btn-outline-primary',
+                attributes: { title: __('index.route.edit') },
+                events: {
+                    click: (e) => {
+                        e.stopPropagation();
+                        this.showEditModal(route.routeId);
+                    }
+                }
+            });
+            const editIcon = window.DashboardDOM.create('i', {
+                className: 'bi bi-pencil'
+            });
+            editBtn.appendChild(editIcon);
+            container.appendChild(editBtn);
+
+            const renameBtn = window.DashboardDOM.create('button', {
+                className: 'btn btn-sm btn-outline-warning',
+                attributes: { title: __('route.renameTitle') },
+                events: {
+                    click: (e) => {
+                        e.stopPropagation();
+                        this.showRenameModal(route.routeId);
+                    }
+                }
+            });
+            renameBtn.appendChild(window.DashboardDOM.create('i', { className: 'bi bi-input-cursor-text' }));
+            container.appendChild(renameBtn);
+
+            // Enable/Disable toggle
+            const isEnabled = route.enabled !== false;
+            const toggleBtn = window.DashboardDOM.create('button', {
+                className: isEnabled ? 'btn btn-sm btn-outline-success' : 'btn btn-sm btn-outline-secondary',
+                attributes: {
+                    title: isEnabled ? __('route.disable') : __('route.enable'),
+                    'data-route-id': route.routeId
+                },
+                events: {
+                    click: (e) => {
+                        e.stopPropagation();
+                        this.toggleRouteEnabled(route.routeId, !isEnabled, e.currentTarget);
+                    }
+                }
+            });
+            toggleBtn.appendChild(window.DashboardDOM.create('i', {
+                className: isEnabled ? 'bi bi-toggle-on' : 'bi bi-toggle-off'
+            }));
+            container.appendChild(toggleBtn);
+
+            // Delete button
+            const deleteBtn = window.DashboardDOM.create('button', {
+                className: 'btn btn-sm btn-outline-danger',
+                attributes: { title: __('index.route.delete') },
+                events: {
+                    click: (e) => {
+                        e.stopPropagation();
+                        this.deleteRoute(route.routeId);
+                    }
+                }
+            });
+            const deleteIcon = window.DashboardDOM.create('i', {
+                className: 'bi bi-trash'
+            });
+            deleteBtn.appendChild(deleteIcon);
+            container.appendChild(deleteBtn);
+
+            return container;
+        },
+
+        createRouteDetailRow: function(route) {
+            const tr = window.DashboardDOM.create('tr', {
+                className: 'route-detail-row'
+            });
+                
+            const td = window.DashboardDOM.create('td', {
+                attributes: { colspan: '8' }
+            });
+                
+            const detailHtml = []; 
+            detailHtml.push('<div class="detail-panel">');
+
+            // Quick actions bar
+            detailHtml.push('<div class="detail-actions-bar">');
+            detailHtml.push(`<div class="detail-actions-left"><span class="detail-actions-label"><i class="bi bi-signpost-split"></i> ${__('index.route.title')}</span></div>`);
+            detailHtml.push('<div class="detail-actions-right">');
+            detailHtml.push(`<button class="btn btn-sm btn-outline-primary detail-action-btn" onclick="RoutesModule.showEditModal('${window.DashboardUtils.escapeHtml(route.routeId)}')" title="${__('index.route.edit')}"><i class="bi bi-pencil"></i> ${__('index.route.edit')}</button>`);
+            detailHtml.push(`<button class="btn btn-sm btn-outline-info detail-action-btn" onclick="RoutesModule.copyRouteJson('${window.DashboardUtils.escapeHtml(route.routeId)}')" title="${__('index.copyJson.title')}"><i class="bi bi-clipboard-data"></i> ${__('index.copyJson')}</button>`);
+            detailHtml.push('</div>');
+            detailHtml.push('</div>');
+
+            // Tab navigation
+            var tabId = 'route-tabs-' + route.routeId.replace(/[^a-zA-Z0-9]/g, '_');
+            detailHtml.push('<div class="detail-tabs">');
+            detailHtml.push('<ul class="nav nav-tabs nav-tabs-sm" role="tablist">');
+            detailHtml.push('<li class="nav-item" role="presentation"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#' + tabId + '-basic" type="button" role="tab"><i class="bi bi-info-circle me-1"></i>' + __('index.route.basicInfo') + '</button></li>');
+            detailHtml.push('<li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#' + tabId + '-fwd" type="button" role="tab"><i class="bi bi-arrow-repeat me-1"></i>' + __('index.route.forwarding') + '</button></li>');
+            detailHtml.push('<li class="nav-item" role="presentation"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#' + tabId + '-cap" type="button" role="tab"><i class="bi bi-puzzle me-1"></i>' + __('capability.title') + '</button></li>');
+            detailHtml.push('</ul>');
+            detailHtml.push('<div class="tab-content detail-tab-content">');
+
+            // Tab 1: Basic Info
+            detailHtml.push('<div class="tab-pane fade show active" id="' + tabId + '-basic" role="tabpanel">');
+
+            // Overview (compact key-value)
+            const sourceBadge = this.createSourceBadge(route.source);
+            detailHtml.push('<div class="detail-section">');
+            detailHtml.push(`<div class="detail-section-title"><i class="bi bi-info-circle"></i>${__('index.route.basicInfo')}</div>`);
+            detailHtml.push('<div class="detail-structured-config">');
+            detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">RouteId</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.routeId)}</code></span></div>`);
+            detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">ClusterId</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.clusterId || '-')}</code></span></div>`);
+            detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">Order</span><span class="detail-kv-value">${this.createOrderBadgeHtml(route.order)}</span></div>`);
+            detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">Source</span><span class="detail-kv-value">${sourceBadge}</span></div>`);
+            detailHtml.push('</div>');
+            detailHtml.push('</div>');
+
+            // Applied Policy section
+            if (route.metadata && (route.metadata['Policy:Id'] || route.metadata['Policy:Name'])) {
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-shield-check"></i>${__('index.route.appliedPolicy')}</div>`);
+                detailHtml.push('<div class="detail-structured-config">');
+                var policyName = route.metadata['Policy:Name'] || route.metadata['Policy:Id'];
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-bookmark-check"></i> ${__('policy.routePolicy')}</span><span class="detail-kv-value"><span class="badge bg-primary"><i class="bi bi-shield-check"></i> ${window.DashboardUtils.escapeHtml(policyName)}</span></span></div>`);
+                detailHtml.push('</div>');
+                detailHtml.push('</div>');
+            }
+
+            // Match Rules
+            detailHtml.push('<div class="detail-section">');
+            detailHtml.push(`<div class="detail-section-title"><i class="bi bi-filter"></i>${__('index.route.match')}</div>`);
+            detailHtml.push('<div class="detail-structured-config">');
+            const match = route.match || {};
+            if (match.path) {
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">Path</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(match.path)}</code></span></div>`);
+            }
+            if (match.hosts && match.hosts.length > 0) {
+                const hostBadges = match.hosts.map(function(h) { return `<code>${h}</code>`; }).join(' ');
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">Hosts</span><span class="detail-kv-value">${hostBadges}</span></div>`);
+            }
+            if (match.methods && match.methods.length > 0) {
+                const methodBadges = match.methods.map(m => this.createMethodBadgeInline(m)).join(' ');
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key">Methods</span><span class="detail-kv-value">${methodBadges}</span></div>`);
+            }
+            detailHtml.push('</div>');
+
+            // Headers & Query Parameters in table format
+            if ((match.headers && match.headers.length > 0) || (match.queryParameters && match.queryParameters.length > 0)) {
+                detailHtml.push('<div class="table-responsive mt-2">');
+                detailHtml.push('<table class="table table-sm detail-table">');
+                detailHtml.push('<thead><tr><th style="width:100px;">' + (__('index.detail.type')) + '</th><th style="width:120px;">' + (__('index.detail.name')) + '</th><th>' + (__('index.detail.values')) + '</th><th style="width:80px;">' + (__('index.detail.mode')) + '</th><th style="width:60px;">Aa</th></tr></thead>');
+                detailHtml.push('<tbody>');
+                if (match.headers && match.headers.length > 0) {
+                    match.headers.forEach(h => {
+                        const cs = h.isCaseSensitive ? '<i class="bi bi-check-lg text-success"></i>' : '<span class="text-muted">-</span>';
+                        detailHtml.push(`<tr><td><span class="badge bg-secondary">${__('index.detail.header')}</span></td><td><code>${h.name || '-'}</code></td><td>${(h.values || []).map(v => `<code>${v}</code>`).join(' ')}</td><td>${h.mode || '-'}</td><td>${cs}</td></tr>`);
+                    });
+                }
+                if (match.queryParameters && match.queryParameters.length > 0) {
+                    match.queryParameters.forEach(q => {
+                        const cs = q.isCaseSensitive ? '<i class="bi bi-check-lg text-success"></i>' : '<span class="text-muted">-</span>';
+                        detailHtml.push(`<tr><td><span class="badge bg-info">${__('index.detail.query')}</span></td><td><code>${q.name || '-'}</code></td><td>${(q.values || []).map(v => `<code>${v}</code>`).join(' ')}</td><td>${q.mode || '-'}</td><td>${cs}</td></tr>`);
+                    });
+                }
+                detailHtml.push('</tbody></table></div>');
+            }
+            detailHtml.push('</div>');
+
+            // Metadata
+            const nonRetryMetadata = route.metadata ? Object.fromEntries(
+                Object.entries(route.metadata).filter(([key]) => !key.startsWith('Retry:') && !key.startsWith('RateLimit:') && !key.startsWith('Waf:') && !key.startsWith('Policy:') && !key.startsWith('CircuitBreaker:'))
+            ) : {};
+            if (Object.keys(nonRetryMetadata).length > 0) {
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-tags"></i>${__('index.route.metadata')}</div>`);
+                detailHtml.push(this.renderStructuredConfig(nonRetryMetadata, 'metadata'));
+                detailHtml.push('</div>');
+            }
+
+            detailHtml.push('</div>'); // end tab-pane basic
+
+            // Tab 2: Forwarding
+            detailHtml.push('<div class="tab-pane fade" id="' + tabId + '-fwd" role="tabpanel">');
+
+            // Destinations
+            if (route.destinations && route.destinations.length > 0) {
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-server"></i>${__('index.cluster.destinations')} <span class="badge bg-light text-dark ms-2">${route.destinations.length}</span></div>`);
+                detailHtml.push('<div class="table-responsive">');
+                detailHtml.push('<table class="table table-sm detail-table">');
+                detailHtml.push(`<thead><tr><th>${__('index.detail.name')}</th><th>${__('index.detail.address')}</th></tr></thead>`);
+                detailHtml.push('<tbody>');
+                route.destinations.forEach(d => {
+                    detailHtml.push(`<tr><td><code>${window.DashboardUtils.escapeHtml(d.name || '-')}</code></td><td><a href="${d.address || '#'}" target="_blank" class="text-decoration-none"><code>${window.DashboardUtils.escapeHtml(d.address || '-')}</code></a></td></tr>`);
+                });
+                detailHtml.push('</tbody></table></div>');
+                detailHtml.push('</div>');
+            }
+
+            // Transforms
+            if (route.transforms && route.transforms.length > 0) {
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-arrow-repeat"></i>${__('index.route.transforms')}</div>`);
+                detailHtml.push(this.renderStructuredTransforms(route.transforms));
+                detailHtml.push('</div>');
+            }
+
+            // Policies
+            const hasPolicies = route.authorizationPolicy || route.corsPolicy || route.outputCachePolicy || route.timeout || route.timeoutPolicy || route.rateLimiterPolicy || (route.maxRequestBodySize !== null && route.maxRequestBodySize !== undefined);
+            if (hasPolicies) {
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-shield-check"></i>${__('index.route.policies')}</div>`);
+                detailHtml.push('<div class="detail-structured-config">');
+                if (route.authorizationPolicy) {
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-shield-lock"></i> ${__('index.route.policy.authorization')}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.authorizationPolicy)}</code></span></div>`);
+                }
+                if (route.corsPolicy) {
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-shield"></i> ${__('index.route.policy.cors')}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.corsPolicy)}</code></span></div>`);
+                }
+                if (route.outputCachePolicy) {
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-hdd-stack"></i> ${__('index.route.policy.outputCache')}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.outputCachePolicy)}</code></span></div>`);
+                }
+                if (route.timeout || route.timeoutPolicy) {
+                    const timeoutVal = route.timeout ? `<code>${route.timeout}</code>` : '<span class="text-muted">-</span>';
+                    const timeoutNote = route.timeoutPolicy ? ` <span class="text-muted small">(${route.timeoutPolicy})</span>` : '';
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-clock"></i> ${__('index.route.policy.timeout')}</span><span class="detail-kv-value">${timeoutVal}${timeoutNote}</span></div>`);
+                }
+                if (route.rateLimiterPolicy) {
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-speedometer2"></i> ${__('index.route.policy.rateLimiter')}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(route.rateLimiterPolicy)}</code></span></div>`);
+                }
+                if (route.maxRequestBodySize !== null && route.maxRequestBodySize !== undefined) {
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-file-earmark-binary"></i> ${__('index.route.policy.maxBodySize')}</span><span class="detail-kv-value"><code>${route.maxRequestBodySize}</code></span></div>`);
+                }
+                detailHtml.push('</div>');
+                detailHtml.push('</div>');
+            }
+
+            // Retry Configuration
+            const retryConfig = this.extractRetryConfig(route.metadata);
+            if (retryConfig && retryConfig.enabled) {
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-arrow-repeat"></i>${__('index.route.retry')}</div>`);
+                detailHtml.push('<div class="detail-structured-config">');
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-toggle-on"></i> ${__('index.route.retry.enabled')}</span><span class="detail-kv-value"><span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes')}</span></span></div>`);
+                if (retryConfig.maxRetries !== undefined) {
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-123"></i> ${__('index.route.retry.maxRetries')}</span><span class="detail-kv-value"><code>${retryConfig.maxRetries}</code></span></div>`);
+                }
+                if (retryConfig.retryOnStatusCodes) {
+                    const codes = retryConfig.retryOnStatusCodes.split(',').map(c => `<code>${c.trim()}</code>`).join(' ');
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-exclamation-triangle"></i> ${__('index.route.retry.statusCodes')}</span><span class="detail-kv-value">${codes}</span></div>`);
+                }
+                if (retryConfig.retryNonIdempotent) {
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-shield-exclamation"></i> ${__('index.route.retry.nonIdempotent')}</span><span class="detail-kv-value"><span class="badge bg-warning text-dark"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes')}</span></span></div>`);
+                }
+                detailHtml.push('</div>');
+                detailHtml.push('</div>');
+            }
+
+            // Rate Limit Configuration
+            const rateLimitConfig = this.extractRateLimitConfig(route.metadata);
+            if (rateLimitConfig && rateLimitConfig.enabled) {
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-speedometer2"></i>${__('index.route.rateLimitConfig')}</div>`);
+                detailHtml.push('<div class="detail-structured-config">');
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-toggle-on"></i> ${__('policy.enabled')}</span><span class="detail-kv-value"><span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes')}</span></span></div>`);
+                if (rateLimitConfig.permitLimit !== undefined) {
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-123"></i> ${__('index.route.rateLimit.permitLimit')}</span><span class="detail-kv-value"><code>${rateLimitConfig.permitLimit}</code></span></div>`);
+                }
+                if (rateLimitConfig.window) {
+                    var windowDisplay = rateLimitConfig.window;
+                    var wm = windowDisplay && windowDisplay.match(/^(\d+(?:\.\d+)?)\s*(s|m|h|ms)?$/i);
+                    if (wm) {
+                        var wNum = parseFloat(wm[1]);
+                        var wUnit = (wm[2] || 's').toLowerCase();
+                        if (wUnit === 'm') windowDisplay = Math.round(wNum * 60) + 's';
+                        else if (wUnit === 'h') windowDisplay = Math.round(wNum * 3600) + 's';
+                        else if (wUnit === 'ms') windowDisplay = (wNum / 1000) + 's';
+                    }
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-clock"></i> ${__('index.route.rateLimit.window')}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(windowDisplay)}</code></span></div>`);
+                }
+                if (rateLimitConfig.algorithm) {
+                    var algoDisplay = __('policy.algo.' + rateLimitConfig.algorithm) || rateLimitConfig.algorithm;
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-gear"></i> ${__('index.route.rateLimit.algorithm')}</span><span class="detail-kv-value"><code>${window.DashboardUtils.escapeHtml(algoDisplay)}</code></span></div>`);
+                }
+                if (rateLimitConfig.queueLimit !== undefined) {
+                    detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-list-ol"></i> ${__('index.route.rateLimit.queueLimit')}</span><span class="detail-kv-value"><code>${rateLimitConfig.queueLimit}</code></span></div>`);
+                }
+                detailHtml.push('</div>');
+                detailHtml.push('</div>');
+            }
+
+            // WAF Configuration
+            const wafConfig = this.extractWafConfig(route.metadata);
+            if (wafConfig && wafConfig.hasConfig) {
+                detailHtml.push('<div class="detail-section">');
+                detailHtml.push(`<div class="detail-section-title"><i class="bi bi-shield-lock"></i>${__('index.route.wafConfig')}</div>`);
+                detailHtml.push('<div class="detail-structured-config">');
+                var wafStatus = wafConfig.enabled === true ? __('index.route.waf.forceOn') : wafConfig.enabled === false ? __('index.route.waf.forceOff') : __('index.route.waf.followGlobal');
+                var wafBadge = wafConfig.enabled === true ? 'bg-success' : wafConfig.enabled === false ? 'bg-danger' : 'bg-secondary';
+                detailHtml.push(`<div class="detail-kv-row"><span class="detail-kv-key"><i class="bi bi-shield-check"></i> ${__('index.route.waf.status')}</span><span class="detail-kv-value"><span class="badge ${wafBadge}">${window.DashboardUtils.escapeHtml(wafStatus)}</span></span></div>`);
+                detailHtml.push('</div>');
+                detailHtml.push('</div>');
+            }
+
+            detailHtml.push('</div>'); // end tab-pane fwd
+
+            // Tab 3: Capabilities
+            detailHtml.push('<div class="tab-pane fade" id="' + tabId + '-cap" role="tabpanel">');
+            detailHtml.push('<div class="dashboard-capabilities" data-scope="Route" data-scope-id="' + window.DashboardUtils.escapeHtml(route.routeId) + '"></div>');
+            detailHtml.push('</div>'); // end tab-pane cap
+
+            detailHtml.push('</div>'); // end tab-content
+            detailHtml.push('</div>'); // end detail-tabs
+            detailHtml.push('</div>'); // end detail-panel
+            td.innerHTML = detailHtml.join('');
+            tr.appendChild(td);
+
+            const capabilityHost = td.querySelector('.dashboard-capabilities');
+            if (window.DashboardCapabilities && capabilityHost) {
+                window.DashboardCapabilities.mount(capabilityHost, 'Route', route.routeId);
+            }
+                
+            return tr;
+        },
+
+        renderStructuredTransforms: function(transforms) {
+            const html = [];
+            html.push('<div class="detail-transforms-list">');
+
+            transforms.forEach(function(transform, index) {
+                const keys = Object.keys(transform);
+                // Try to build a human-readable summary
+                let summary = '';
+                let detailParts = [];
+
+                keys.forEach(function(key) {
+                    const val = transform[key];
+                    if (typeof val === 'string') {
+                        // Known transform types for readable labels
+                        const labelMap = {
+                            'PathPattern': 'Path Pattern',
+                            'PathSet': 'Path Set',
+                            'PathPrefix': 'Path Prefix',
+                            'PathRemovePrefix': 'Remove Prefix',
+                            'AddRequestHeader': 'Add Request Header',
+                            'AddResponseHeader': 'Add Response Header',
+                            'RemoveRequestHeader': 'Remove Request Header',
+                            'RemoveResponseHeader': 'Remove Response Header',
+                            'RequestHeader': 'Request Header',
+                            'ResponseHeader': 'Response Header',
+                            'QueryValueParameter': 'Query Param',
+                            'AddQueryParameter': 'Add Query',
+                            'RemoveQueryParameter': 'Remove Query',
+                            'RequestHeadersCopy': 'Copy Request Headers',
+                            'ResponseHeadersCopy': 'Copy Response Headers',
+                            'UseOriginalHost': 'Use Original Host',
+                            'Forwarded': 'Forwarded Header',
+                            'PathTransform': 'Path Transform',
+                        };
+                        const label = labelMap[key] || key;
+                        if (!summary) {
+                            summary = `<strong>${label}</strong>: <code>${window.DashboardUtils.escapeHtml(val)}</code>`;
+                        } else {
+                            detailParts.push(`<span class="detail-kv-key">${label}</span> <code>${window.DashboardUtils.escapeHtml(val)}</code>`);
+                        }
+                    } else if (typeof val === 'boolean') {
+                        const label = key.replace(/([A-Z])/g, ' $1').trim();
+                        if (val) {
+                            detailParts.push(`<span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes')}: ${label}</span>`);
+                        }
+                    } else if (typeof val === 'object' && val !== null) {
+                        detailParts.push(`<span class="detail-kv-key">${key}</span> <code>${window.DashboardUtils.escapeHtml(JSON.stringify(val))}</code>`);
+                    }
+                });
+
+                html.push(`<div class="detail-transform-item">`);
+                html.push(`<div class="detail-transform-header">`);
+                html.push(`<span class="detail-transform-index">#${index + 1}</span>`);
+                html.push(`<span class="detail-transform-summary">${summary || JSON.stringify(transform)}</span>`);
+                if (detailParts.length > 0) {
+                    html.push(`<span class="detail-transform-detail">${detailParts.join(' &bull; ')}</span>`);
+                }
+                html.push('</div>');
+                // Collapsible raw JSON
+                html.push(`<details class="detail-transform-raw"><summary><i class="bi bi-code-slash"></i></summary><pre>${window.DashboardUtils.escapeHtml(JSON.stringify(transform, null, 2))}</pre></details>`);
+                html.push('</div>');
+            });
+
+            html.push('</div>');
+            return html.join('');
+        },
+
+        extractRetryConfig: function(metadata) {
+            if (!metadata || typeof metadata !== 'object') return null;
+            
+            const retryKeys = ['Retry:Enabled', 'Retry:MaxRetries', 'Retry:RetryOnStatusCodes', 'Retry:RetryNonIdempotent'];
+            const hasRetryConfig = retryKeys.some(key => metadata.hasOwnProperty(key));
+            
+            if (!hasRetryConfig) return null;
+            
+            const enabled = metadata['Retry:Enabled'] === 'true' || metadata['Retry:Enabled'] === true;
+            
+            return {
+                enabled: enabled,
+                maxRetries: metadata['Retry:MaxRetries'],
+                retryOnStatusCodes: metadata['Retry:RetryOnStatusCodes'],
+                retryNonIdempotent: metadata['Retry:RetryNonIdempotent'] === 'true' || metadata['Retry:RetryNonIdempotent'] === true
+            };
+        },
+
+        extractRateLimitConfig: function(metadata) {
+            if (!metadata || typeof metadata !== 'object') return null;
+            
+            const rlKeys = ['RateLimit:Enabled', 'RateLimit:PermitLimit', 'RateLimit:Window', 'RateLimit:Algorithm', 'RateLimit:QueueLimit'];
+            const hasRlConfig = rlKeys.some(key => metadata.hasOwnProperty(key));
+            
+            if (!hasRlConfig) return null;
+            
+            const enabled = metadata['RateLimit:Enabled'] === 'true' || metadata['RateLimit:Enabled'] === true;
+            
+            return {
+                enabled: enabled,
+                permitLimit: metadata['RateLimit:PermitLimit'],
+                window: metadata['RateLimit:Window'],
+                algorithm: metadata['RateLimit:Algorithm'],
+                queueLimit: metadata['RateLimit:QueueLimit']
+            };
+        },
+
+        extractWafConfig: function(metadata) {
+            if (!metadata || typeof metadata !== 'object') return null;
+            
+            if (!metadata.hasOwnProperty('Waf:Enabled')) return null;
+            
+            var wafVal = metadata['Waf:Enabled'];
+            var enabled = wafVal === 'true' ? true : wafVal === 'false' ? false : null;
+            
+            return {
+                hasConfig: true,
+                enabled: enabled
+            };
+        },
+
+        renderStructuredConfig: function(obj, configType) {
+            if (!obj || typeof obj !== 'object') return '';
+
+            const keyLabels = {
+                'Name': 'Name', 'Value': 'Value', 'Domain': 'Domain', 'HttpOnly': 'HttpOnly',
+                'SameSite': 'SameSite', 'Expiration': 'Expiration', 'MaxAge': 'MaxAge',
+            };
+
+            const html = [];
+            html.push('<div class="detail-structured-config">');
+
+            const renderKeyValue = function(key, value, depth) {
+                const label = keyLabels[key] || key;
+                const indent = depth > 0 ? ` style="padding-left:${depth * 20}px;"` : '';
+
+                if (value === null || value === undefined) {
+                    html.push(`<div class="detail-kv-row"${indent}><span class="detail-kv-key">${label}</span><span class="detail-kv-value text-muted">-</span></div>`);
+                } else if (typeof value === 'boolean') {
+                    const badge = value
+                        ? `<span class="badge bg-success"><i class="bi bi-check-circle-fill"></i> ${__('index.bool.yes')}</span>`
+                        : `<span class="badge bg-secondary"><i class="bi bi-x-circle-fill"></i> ${__('index.bool.no')}</span>`;
+                    html.push(`<div class="detail-kv-row"${indent}><span class="detail-kv-key">${label}</span><span class="detail-kv-value">${badge}</span></div>`);
+                } else if (typeof value === 'number' || typeof value === 'string') {
+                    const valHtml = `<code>${window.DashboardUtils.escapeHtml(String(value))}</code>`;
+                    html.push(`<div class="detail-kv-row"${indent}><span class="detail-kv-key">${label}</span><span class="detail-kv-value">${valHtml}</span></div>`);
+                } else if (Array.isArray(value)) {
+                    const items = value.map(function(v) {
+                        return `<code>${window.DashboardUtils.escapeHtml(String(v))}</code>`;
+                    }).join(' ');
+                    html.push(`<div class="detail-kv-row"${indent}><span class="detail-kv-key">${label}</span><span class="detail-kv-value">${items}</span></div>`);
+                } else if (typeof value === 'object') {
+                    html.push(`<div class="detail-kv-row detail-kv-group"${indent}><span class="detail-kv-key detail-kv-group-key"><i class="bi bi-chevron-right"></i> ${label}</span></div>`);
+                    Object.keys(value).forEach(function(subKey) {
+                        renderKeyValue(subKey, value[subKey], depth + 1);
+                    });
+                }
+            };
+
+            Object.keys(obj).forEach(function(key) {
+                renderKeyValue(key, obj[key], 0);
+            });
+
+            // Collapsible raw JSON toggle
+            html.push(`<div class="detail-raw-json-toggle"><details><summary><i class="bi bi-code-slash"></i> ${__('index.viewRawJson')}</summary><pre class="detail-raw-json">${window.DashboardUtils.escapeHtml(JSON.stringify(obj, null, 2))}</pre></details></div>`);
+
+            html.push('</div>');
+            return html.join('');
+        },
+
+        // Policy-managed metadata key prefixes, edited via the "Manage Policy" UI rather than raw JSON.
+        _policyMetaPrefixes: ['Retry:', 'RateLimit:', 'CircuitBreaker:', 'Waf:', 'Policy:'],
+
+        _isPolicyMetaKey: function(key) {
+            return this._policyMetaPrefixes.some(function(p) { return key.indexOf(p) === 0; });
+        },
+
+        // Builds a complete native YARP route object (PascalCase) from a route response,
+        // preserving every supported property so the JSON editor exposes the full schema.
+        // When stripPolicyMeta is true, policy-managed metadata keys are omitted (and returned
+        // separately) so they are not edited via raw JSON.
+        buildYarpRoute: function(route, options) {
+            options = options || {};
+            const self = this;
+            const match = route.match || {};
+            const yarpRoute = {
+                "ClusterId": route.clusterId || route.clusterKey || ""
+            };
+
+            if (route.order !== null && route.order !== undefined) yarpRoute.Order = route.order;
+
+            const yarpMatch = {};
+            if (match.path) yarpMatch.Path = match.path;
+            const methods = match.methods || [];
+            if (methods.length > 0) yarpMatch.Methods = methods;
+            const hosts = match.hosts || [];
+            if (hosts.length > 0) yarpMatch.Hosts = hosts;
+            if (Array.isArray(match.headers) && match.headers.length > 0) {
+                yarpMatch.Headers = match.headers.map(function(h) {
+                    const item = { "Name": h.name };
+                    if (h.values && h.values.length > 0) item.Values = h.values;
+                    if (h.mode) item.Mode = h.mode;
+                    if (h.isCaseSensitive) item.IsCaseSensitive = true;
+                    return item;
+                });
+            }
+            if (Array.isArray(match.queryParameters) && match.queryParameters.length > 0) {
+                yarpMatch.QueryParameters = match.queryParameters.map(function(q) {
+                    const item = { "Name": q.name };
+                    if (q.values && q.values.length > 0) item.Values = q.values;
+                    if (q.mode) item.Mode = q.mode;
+                    if (q.isCaseSensitive) item.IsCaseSensitive = true;
+                    return item;
+                });
+            }
+            yarpRoute.Match = yarpMatch;
+
+            if (route.authorizationPolicy) yarpRoute.AuthorizationPolicy = route.authorizationPolicy;
+            if (route.corsPolicy) yarpRoute.CorsPolicy = route.corsPolicy;
+            if (route.outputCachePolicy) yarpRoute.OutputCachePolicy = route.outputCachePolicy;
+            if (route.rateLimiterPolicy) yarpRoute.RateLimiterPolicy = route.rateLimiterPolicy;
+            if (route.timeoutPolicy) yarpRoute.TimeoutPolicy = route.timeoutPolicy;
+            if (route.timeout) yarpRoute.Timeout = route.timeout;
+            if (route.maxRequestBodySize !== null && route.maxRequestBodySize !== undefined) yarpRoute.MaxRequestBodySize = route.maxRequestBodySize;
+            if (route.transforms && route.transforms.length > 0) yarpRoute.Transforms = route.transforms;
+
+            const preservedPolicyMeta = {};
+            if (route.metadata && Object.keys(route.metadata).length > 0) {
+                const meta = {};
+                Object.keys(route.metadata).forEach(function(key) {
+                    if (options.stripPolicyMeta && self._isPolicyMetaKey(key)) {
+                        preservedPolicyMeta[key] = route.metadata[key];
+                    } else {
+                        meta[key] = route.metadata[key];
+                    }
+                });
+                if (Object.keys(meta).length > 0) yarpRoute.Metadata = meta;
+            }
+
+            return { yarpRoute: yarpRoute, preservedPolicyMeta: preservedPolicyMeta };
+        },
+
+        copyRouteJson: function(routeId) {
+            const routes = window.DashboardState.get('data.routes') || [];
+            const route = routes.find(function(r) { return r.routeId === routeId; });
+            if (!route) return;
+
+            const built = this.buildYarpRoute(route, { stripPolicyMeta: true });
+            const json = JSON.stringify(built.yarpRoute, null, 2);
+            window.DashboardUtils.copyToClipboard(json).then(function(success) {
+                if (success) window.DashboardModals.showSuccess(__('index.copied'));
+            });
+        },
+        
+        createCopyButton: function(text) {
+            const btn = window.DashboardDOM.create('button', {
+                className: 'copy-btn',
+                attributes: { title: __('index.copy') },
+                events: {
+                    click: (e) => {
+                        e.stopPropagation();
+                        if (!text) return;
+                        window.DashboardUtils.copyToClipboard(text).then((success) => {
+                            if (!success) return;
+                            btn.classList.add('copied');
+                            const icon = btn.querySelector('i');
+                            if (icon) {
+                                icon.className = 'bi bi-check2';
+                            }
+                            setTimeout(() => {
+                                btn.classList.remove('copied');
+                                if (icon) {
+                                    icon.className = 'bi bi-clipboard';
+                                }
+                            }, 1500);
+                        });
+                    }
+                }
+            });
+            const icon = window.DashboardDOM.create('i', {
+                className: 'bi bi-clipboard',
+                style: { fontSize: '12px' }
+            });
+            btn.appendChild(icon);
+            return btn;
+        },
+
+        createSourceBadge: function(source) {
+            return window.DashboardUtils.createSourceBadge(source);
+        },
+        
+        createOrderBadgeHtml: function(order) {
+            const displayOrder = (order !== null && order !== undefined) ? order : '-';
+                    
+            let cssClass, iconClass;
+            if (order !== null && order !== undefined) {
+                if (order < 50) {
+                    cssClass = 'priority-high';
+                    iconClass = 'bi-arrow-up-circle-fill';
+                } else if (order < 100) {
+                    cssClass = 'priority-medium';
+                    iconClass = 'bi-arrow-right-circle-fill';
+                } else {
+                    cssClass = 'priority-low';
+                    iconClass = 'bi-arrow-down-circle-fill';
+                }
+            } else {
+                cssClass = 'priority-none';
+                iconClass = 'bi-dash-circle';
+            }
+                    
+            return `<span class="priority-badge ${cssClass}"><i class="bi ${iconClass}"></i> ${displayOrder}</span>`;
+        },
+
+        createMethodBadgeInline: function(method) {
+            const methodMap = {
+                'GET': { css: 'bg-success', icon: 'bi-arrow-down-circle-fill' },
+                'POST': { css: 'bg-primary', icon: 'bi-plus-circle-fill' },
+                'PUT': { css: 'bg-info', icon: 'bi-pencil-circle-fill' },
+                'DELETE': { css: 'bg-danger', icon: 'bi-trash-circle-fill' },
+                'PATCH': { css: 'bg-warning text-dark', icon: 'bi-gear-circle-fill' }
+            }; 
+            const config = methodMap[method] || { css: 'bg-secondary', icon: 'bi-circle-fill' }; 
+            return `<span class="badge ${config.css}" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;margin-right:4px;"><i class="bi ${config.icon}"></i>${method}</span>`;
+        },
+
+        toggleRoute: function(routeId) {
+            const state = window.DashboardState;
+            const expandedSet = state.get('ui.expandedRoutes');
+            const current = expandedSet ? expandedSet.has(routeId) : false;
+            
+            if (current) {
+                expandedSet.delete(routeId);
+            } else {
+                expandedSet.add(routeId);
+            }
+            
+            // Direct DOM manipulation for better performance
+            const routeRow = document.querySelector(`.route-row[data-route-id="${CSS.escape(routeId)}"]`);
+            if (routeRow) {
+                // Update expand icon
+                const expandIcon = routeRow.querySelector('.row-expand-icon');
+                if (expandIcon) {
+                    expandIcon.classList.toggle('expanded', !current);
+                }
+                
+                // Toggle detail row visibility
+                const detailRow = routeRow.nextElementSibling;
+                if (detailRow && detailRow.classList.contains('route-detail-row')) {
+                    // Remove existing detail row
+                    detailRow.remove();
+                } else if (!current) {
+                    // Add detail row after main row
+                    const route = state.get('data.routes').find(r => r.routeId === routeId);
+                    if (route) {
+                        const detailTr = this.createRouteDetailRow(route);
+                        routeRow.after(detailTr);
+                    }
+                }
+            }
+        },
+
+        updateRefreshTime: function() {
+            const timeEl = window.DashboardDOM.safe('#route-refresh-time');
+            if (timeEl) {
+                timeEl.textContent = __('index.route.updated') + window.DashboardI18n.formatTime(new Date());
+            }
+        },
+
+        showAddModal: async function() {
+            const self = this;
+
+            // Get available clusters (lazy-load if not yet fetched)
+            let clusters = window.DashboardState.get('data.clusters') || [];
+            if (clusters.length === 0) {
+                await self.ensureClustersLoaded();
+                clusters = window.DashboardState.get('data.clusters') || [];
+            }
+            const clusterIds = clusters.map(c => c.clusterId);
+
+            // If no clusters, show warning
+            if (clusterIds.length === 0) {
+                window.DashboardModals.showWarning(__('index.route.noClusters'));
+                return;
+            }
+
+            // Default route template for new route
+            const defaultRoute = {
+                "ClusterId": clusterIds[0] || "",
+                "Order": 50,
+                "Match": {
+                    "Path": "/api/service/{**catchAll}"
+                }
+            };
+
+            window.DashboardModals.showJsonModal({
+                title: __('modal.addRoute'),
+                data: defaultRoute,
+                schemaType: 'route',
+                size: 'xl',
+                hint: __('modal.policyManagedHint') || undefined,
+                editableId: {
+                    label: 'Route ID',
+                    value: '',
+                    placeholder: __('modal.routeIdPlaceholder') || 'my-route',
+                    readOnly: false
+                },
+                onSave: function(parsedData, newId) {
+                    if (!parsedData.ClusterId || !parsedData.ClusterId.trim()) {
+                        window.DashboardModals.showError(__('index.route.invalidCluster'));
+                        return false;
+                    }
+                    if (!parsedData.Match || (!parsedData.Match.Path && !parsedData.Match.Hosts)) {
+                        window.DashboardModals.showError(__('index.route.invalidMatch'));
+                        return false;
+                    }
+                    // Check cluster exists
+                    if (clusterIds.indexOf(parsedData.ClusterId) === -1) {
+                        window.DashboardModals.showWarning(__('index.route.clusterNotFound') + parsedData.ClusterId);
+                    }
+
+                    self.saveRouteFromJson(parsedData, newId);
+                    return true;
+                }
+            });
+        },
+        
+        saveRouteFromJson: async function(routeConfig, routeId) {
+            try {
+                // Generate routeId from user input or from existing
+                if (!routeId) {
+                    const id = await this.promptRouteId();
+                    if (!id) return;
+                    routeId = id;
+                }
+        
+                window.DashboardModals.showInfo(__('index.route.saving'));
+        
+                // Convert to API format (YARP format is already correct)
+                const response = await window.DashboardApi.endpoints.saveRoute(routeId, routeConfig);
+        
+                window.DashboardModals.showSuccess(__('index.route.saved'));
+                await this.loadRoutes(true);
+        
+                document.dispatchEvent(new CustomEvent('dashboard:configChanged', {
+                    detail: { type: 'route', id: routeId, action: 'save' }
+                }));
+            } catch (error) {
+                console.error('[Routes] Save failed:', error);
+                window.DashboardModals.showError(__('index.route.saveFailed') + error.message);
+            }
+        },
+        
+        promptRouteId: function() {
+            return new Promise(function(resolve) {
+                const modalId = 'route-id-prompt-' + Date.now();
+                const modalHtml = `
+                    <div class="modal fade" id="${modalId}" tabindex="-1">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content" style="border-radius:16px;border:none;box-shadow:0 25px 50px rgba(0,0,0,0.25);overflow:hidden;">
+                                <div class="modal-header" style="background:linear-gradient(135deg,#f8fafc 0%,#e2e8f0 100%);border-bottom:1px solid #e2e8f0;padding:18px 24px;">
+                                    <h5 class="modal-title" style="font-weight:600;font-size:16px;display:flex;align-items:center;gap:10px;">
+                                        <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#818cf8);color:#fff;font-size:16px;">
+                                            <i class="bi bi-tag"></i>
+                                        </span>
+                                        ${__('modal.routeId')}
+                                    </h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body" style="padding:24px;">
+                                    <div style="margin-bottom:12px;">
+                                        <label class="form-label" style="font-weight:500;font-size:13px;color:#334155;">Route ID</label>
+                                        <input type="text" class="form-control" id="${modalId}-input" 
+                                               placeholder="${__('modal.routeIdPlaceholder')}"
+                                               required
+                                               style="border-radius:8px;padding:10px 14px;font-size:14px;border:1.5px solid #e2e8f0;transition:border-color 0.2s,box-shadow 0.2s;"
+                                               onfocus="this.style.borderColor='#6366f1';this.style.boxShadow='0 0 0 3px rgba(99,102,241,0.1)'"
+                                               onblur="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'">
+                                    </div>
+                                    <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;font-size:12px;color:#0369a1;display:flex;align-items:flex-start;gap:8px;">
+                                        <i class="bi bi-info-circle" style="font-size:14px;margin-top:2px;flex-shrink:0;"></i>
+                                        <span>${__('modal.routeIdHelp')}</span>
+                                    </div>
+                                </div>
+                                <div class="modal-footer" style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 24px;gap:8px;">
+                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">${__('modal.cancelBtn')}</button>
+                                    <button type="button" class="btn btn-primary btn-sm" id="${modalId}-confirm">${__('modal.confirmBtn')}</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                        
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                const modalEl = document.getElementById(modalId);
+                const bsModal = new bootstrap.Modal(modalEl, { backdrop: 'static', keyboard: false });
+                const inputEl = document.getElementById(modalId + '-input');
+        
+                document.getElementById(modalId + '-confirm').addEventListener('click', function() {
+                    const value = inputEl.value.trim();
+                    if (!value) {
+                        inputEl.classList.add('is-invalid');
+                        return;
+                    }
+                    bsModal.hide();
+                    resolve(value);
+                });
+        
+                // Enter key to submit
+                inputEl.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        document.getElementById(modalId + '-confirm').click();
+                    }
+                });
+        
+                modalEl.addEventListener('hidden.bs.modal', function() {
+                    modalEl.remove();
+                    if (!inputEl.value.trim()) resolve(null);
+                });
+        
+                bsModal.show();
+                inputEl.focus();
+            });
+        },
+
+        showEditModal: function(routeId) {
+            const self = this;
+                    
+            // Get route data
+            const routes = window.DashboardState.get('data.routes') || [];
+            const route = routes.find(r => r.routeId === routeId);
+                    
+            if (!route) {
+                window.DashboardModals.showError(__('index.route.notFound'));
+                return;
+            }
+
+            // Build the full native YARP route config for the JSON editor, exposing every
+            // supported property and keeping policy-managed metadata out of the raw editor.
+            const built = this.buildYarpRoute(route, { stripPolicyMeta: true });
+            const yarpRoute = built.yarpRoute;
+            const _preservedPolicyMeta = built.preservedPolicyMeta;
+
+            window.DashboardModals.showJsonModal({
+                title: __('modal.editRoute'),
+                data: yarpRoute,
+                schemaType: 'route',
+                size: 'xl',
+                hint: __('modal.policyManagedHint') || undefined,
+                editableId: {
+                    label: 'Route ID',
+                    value: routeId,
+                    original: routeId,
+                    placeholder: __('modal.routeIdPlaceholder'),
+                    readOnly: true
+                },
+                onSave: function(parsedData, newId) {
+                    // Validate route config
+                    if (!parsedData.ClusterId || !parsedData.ClusterId.trim()) {
+                        window.DashboardModals.showError(__('index.route.invalidCluster'));
+                        return false;
+                    }
+                    if (!parsedData.Match || (!parsedData.Match.Path && !parsedData.Match.Hosts)) {
+                        window.DashboardModals.showError(__('index.route.invalidMatch'));
+                        return false;
+                    }
+
+                    // Merge back preserved policy metadata before saving
+                    if (Object.keys(_preservedPolicyMeta).length > 0) {
+                        if (!parsedData.Metadata) parsedData.Metadata = {};
+                        Object.keys(_preservedPolicyMeta).forEach(function(key) {
+                            parsedData.Metadata[key] = _preservedPolicyMeta[key];
+                        });
+                    }
+
+                    if (newId && newId !== routeId) {
+                        window.DashboardModals.showError(__('route.renameOnly'));
+                        return false;
+                    }
+
+                    self.saveRouteFromJson(parsedData, routeId);
+                    return true;
+                }
+            });
+        },
+
+        showRenameModal: function(routeId) {
+            const newId = prompt(__('route.renamePrompt'), routeId);
+            if (newId === null) return;
+            const trimmed = newId.trim();
+            if (!trimmed || trimmed === routeId) return;
+
+            const route = (window.DashboardState.get('data.routes') || []).find(r => r.routeId === routeId);
+            if (!route) {
+                window.DashboardModals.showError(__('route.notFound'));
+                return;
+            }
+
+            this.renameRoute(routeId, trimmed, {
+                ClusterId: route.clusterId,
+                matchPath: route.match?.path || route.matchPath || route.path,
+                Order: route.order,
+                Transforms: route.transforms
+            });
+        },
+
+        renameRoute: async function(oldId, newId, routeConfig) {
+            const self = this;
+            try {
+                window.DashboardModals.showInfo(__('index.route.renaming'));
+
+                // Call dedicated rename API (triggers a single "RenameRoute" event)
+                const renamePayload = {
+                    newRouteId: newId,
+                    matchPath: routeConfig.matchPath || routeConfig.Match?.Path,
+                    clusterId: routeConfig.clusterId || routeConfig.ClusterId,
+                    order: routeConfig.order || routeConfig.Order,
+                    transforms: routeConfig.transforms || routeConfig.Transforms
+                };
+
+                await window.DashboardApi.put(
+                    `/api/config/routes/${encodeURIComponent(oldId)}/rename`,
+                    renamePayload);
+
+                window.DashboardModals.showSuccess(__('index.route.renamed'));
+                await self.loadRoutes(true);
+
+                document.dispatchEvent(new CustomEvent('dashboard:configChanged', {
+                    detail: { type: 'route', id: newId, oldId: oldId, action: 'rename' }
+                }));
+            } catch (error) {
+                console.error('[Routes] Rename failed:', error);
+                window.DashboardModals.showError(__('index.route.renameFailed') + error.message);
+            }
+        },
+
+        toggleRouteEnabled: async function(routeId, enable, btnElement) {
+            const self = this;
+            let originalHTML = '';
+            if (btnElement) {
+                originalHTML = btnElement.innerHTML;
+                btnElement.disabled = true;
+                btnElement.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i>';
+            }
+            try {
+                const basePath = '/' + (window.__dashboard?.routePrefix || 'apigateway');
+                const token = localStorage.getItem('dashboard_token') || '';
+                const resp = await fetch(basePath + '/api/config/routes/' + encodeURIComponent(routeId) + '/enabled', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(token ? { 'Authorization': 'Bearer ' + token } : {})
+                    },
+                    body: JSON.stringify({ enabled: enable })
+                });
+                const data = await resp.json();
+                if (data.code === 200) {
+                    window.DashboardModals.showSuccess(enable ? __('route.enabled') : __('route.disabled'));
+                    await self.loadRoutes(true);
+                    document.dispatchEvent(new CustomEvent('dashboard:configChanged', {
+                        detail: { type: 'route', id: routeId, action: enable ? 'enable' : 'disable' }
+                    }));
+                } else {
+                    window.DashboardModals.showError(data.message || __('route.toggleFailed'));
+                }
+            } catch (error) {
+                console.error('[Routes] Toggle enabled failed:', error);
+                window.DashboardModals.showError(__('route.toggleFailed') + ': ' + error.message);
+            } finally {
+                if (btnElement) {
+                    btnElement.disabled = false;
+                    btnElement.innerHTML = originalHTML;
+                }
+            }
+        },
+
+        deleteRoute: async function(routeId) {
+            const self = this;
+            
+            window.DashboardModals.showConfirm(
+                __('index.route.deleteConfirm').replace('{id}', routeId),
+                async function() {
+                    try {
+                        window.DashboardModals.showInfo(__('index.route.deleting'));
+                        
+                        await window.DashboardApi.endpoints.deleteRouteConfig(routeId);
+                        await self.loadRoutes(true);
+                        
+                        window.DashboardModals.showSuccess(__('index.route.deleted'));
+
+                        // Trigger config deleted event
+                        document.dispatchEvent(new CustomEvent('dashboard:configChanged', {
+                            detail: { type: 'route', id: routeId, action: 'delete' }
+                        }));
+                    } catch (error) {
+                        console.error('[Routes] Delete failed:', error);
+                        window.DashboardModals.showError(__('index.route.deleteFailed') + error.message);
+                    }
+                },
+                null,
+                { title: __('modal.deleteRoute'), danger: true }
+            );
+        },
+
+        setupEvents: function() {
+            // Refresh shortcut
+            document.addEventListener('dashboard:shortcut:refresh', async () => {
+                await this.loadRoutes();
+            });
+
+            // Locale change
+            document.addEventListener('dashboard:localeChange', () => {
+                this.renderRoutes();
+            });
+
+            // Setup event delegation for card and table views
+            this._setupEventDelegation();
+        },
+
+        _setupEventDelegation: function() {
+            // Event delegation for card view action buttons (data-action attribute)
+            var self = this;
+            document.addEventListener('click', function(e) {
+                var btn = e.target.closest('[data-action]');
+                if (!btn) return;
+                var card = btn.closest('[data-route-id]');
+                if (!card) return;
+                var routeId = card.dataset.routeId;
+                if (!routeId) return;
+                var action = btn.dataset.action;
+                if (action === 'toggle') {
+                    e.stopPropagation();
+                    var route = self._findRouteById(routeId);
+                    var currentlyEnabled = route ? route.enabled !== false : true;
+                    self.toggleRouteEnabled(routeId, !currentlyEnabled, btn);
+                } else if (action === 'edit') {
+                    e.stopPropagation();
+                    self.showEditModal(routeId);
+                } else if (action === 'delete') {
+                    e.stopPropagation();
+                    self.deleteRoute(routeId);
+                }
+            });
+        },
+
+        _findRouteById: function(routeId) {
+            const routes = window.DashboardState.get('data.routes') || [];
+            return routes.find(r => r.routeId === routeId);
+        },
+
+        createRouteCardDOM: function(route) {
+            const pathText = route.match && route.match.path || '-';
+            const methods = route.match && route.match.methods || [];
+            const hostText = route.match && route.match.hosts && route.match.hosts.length > 0 ? route.match.hosts[0] : '';
+            const hasTransforms = route.transforms && route.transforms.length > 0;
+            const hasAuthorization = route.authorizationPolicy || route.authorizationPolicy === '';
+            const accentColor = route.clusterId ? '#3b82f6' : '#94a3b8';
+
+            // Create card element
+            const card = document.createElement('div');
+            card.className = 'route-card';
+            card.dataset.routeId = route.routeId;
+            card.dataset.key = route.routeId; // For diff tracking
+            var isDisabled = route.enabled === false;
+            card.style.cssText = 'border:1px solid var(--border-color);border-left:4px solid ' + (isDisabled ? '#cbd5e1' : accentColor) + 
+                ';border-radius:12px;background:var(--card-bg);overflow:hidden;transition:box-shadow 0.2s,transform 0.15s;cursor:pointer;' +
+                (isDisabled ? ';opacity:0.5;filter:grayscale(0.7)' : '');
+            
+            // Hover effects
+            card.addEventListener('mouseenter', function() {
+                this.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
+                this.style.transform = 'translateY(-1px)';
+            });
+            card.addEventListener('mouseleave', function() {
+                this.style.boxShadow = 'none';
+                this.style.transform = 'none';
+            });
+
+            // Card content HTML
+            card.innerHTML = this._buildCardHTML(route, pathText, methods, hostText, hasTransforms, hasAuthorization);
+
+            return card;
+        },
+
+        _buildCardHTML: function(route, pathText, methods, hostText, hasTransforms, hasAuthorization) {
+            const orderBadge = route.order !== null && route.order !== undefined 
+                ? '<span class="route-order-badge" style="background:' + (route.order < 100 ? '#fef3c7' : route.order < 1000 ? '#e0e7ff' : '#f1f5f9') + ';color:' + (route.order < 100 ? '#92400e' : route.order < 1000 ? '#3730a3' : '#64748b') + '">' + route.order + '</span>'
+                : '<span class="route-order-badge" style="background:#f1f5f9;color:#94a3b8">-</span>';
+
+            const hostBadge = hostText 
+                ? '<span class="route-host"><i class="bi bi-globe"></i>' + window.DashboardUtils.escapeHtml(hostText) + '</span>' 
+                : '';
+
+            const indicators = [];
+            if (hasTransforms) indicators.push('<i class="bi bi-arrow-left-right" style="color:#8b5cf6;" title="Transforms"></i>');
+            if (hasAuthorization) indicators.push('<i class="bi bi-shield-lock" style="color:#f59e0b;" title="Authorization"></i>');
+            const indicatorHtml = indicators.length > 0 ? '<span class="route-indicators">' + indicators.join('') + '</span>' : '';
+
+            let methodsHtml = '';
+            if (methods.length > 0) {
+                const mColors = { 'GET': '#22c55e', 'POST': '#3b82f6', 'PUT': '#f59e0b', 'DELETE': '#ef4444', 'PATCH': '#8b5cf6', 'HEAD': '#64748b', 'OPTIONS': '#94a3b8' };
+                const mBg = { 'GET': '#f0fdf4', 'POST': '#eff6ff', 'PUT': '#fffbeb', 'DELETE': '#fef2f2', 'PATCH': '#f5f3ff', 'HEAD': '#f8fafc', 'OPTIONS': '#f8fafc' };
+                const mBorder = { 'GET': '#bbf7d0', 'POST': '#bfdbfe', 'PUT': '#fde68a', 'DELETE': '#fecaca', 'PATCH': '#ddd6fe', 'HEAD': '#e2e8f0', 'OPTIONS': '#e2e8f0' };
+                methodsHtml = methods.map(m => {
+                    const c = mColors[m] || '#64748b';
+                    return '<span class="route-method" style="background:' + (mBg[m] || '#f8fafc') + ';color:' + c + ';border-color:' + (mBorder[m] || '#e2e8f0') + '">' + m + '</span>';
+                }).join('');
+            } else {
+                methodsHtml = '<span class="route-method-any">ANY</span>';
+            }
+
+            const clusterHtml = route.clusterId 
+                ? '<span class="route-cluster"><i class="bi bi-diagram-3"></i>' + window.DashboardUtils.escapeHtml(route.clusterId) + '</span>' 
+                : '';
+
+            return '<div class="route-card-header">' +
+                '<div class="route-card-title">' +
+                orderBadge +
+                '<div class="route-name-wrap">' +
+                '<div class="route-name" title="' + window.DashboardUtils.escapeHtml(route.routeId) + '">' + window.DashboardUtils.escapeHtml(route.routeId) +
+                (route.enabled === false ? ' <span class="badge bg-danger-subtle text-danger border border-danger-subtle" style="font-size:10px;font-weight:600;">' + (window.__ && __("route.disabledBadge") || 'Disabled') + '</span>' : '') +
+                '</div>' +
+                '<div class="route-meta">' +
+                window.DashboardUtils.createSourceBadge(route.source) +
+                hostBadge +
+                indicatorHtml +
+                '</div>' +
+                '</div>' +
+                '</div>' +
+                '<div class="route-card-actions btn-group">' +
+                '<button class="btn btn-sm ' + (route.enabled !== false ? 'btn-outline-success' : 'btn-outline-secondary') + '" title="' + (route.enabled !== false ? __("route.disable") : __("route.enable")) + '" data-action="toggle"><i class="bi bi-toggle-' + (route.enabled !== false ? 'on' : 'off') + '"></i></button>' +
+                '<button class="btn btn-sm btn-outline-primary" title="' + __("index.route.edit") + '" data-action="edit"><i class="bi bi-pencil"></i></button>' +
+                '<button class="btn btn-sm btn-outline-danger" title="' + __("index.route.delete") + '" data-action="delete"><i class="bi bi-trash"></i></button>' +
+                '</div>' +
+                '</div>' +
+                '<div class="route-card-body">' +
+                '<div class="route-path-row">' +
+                '<span class="route-path-icon"><i class="bi bi-signpost-2"></i></span>' +
+                '<code class="route-path">' + window.DashboardUtils.escapeHtml(pathText) + '</code>' +
+                '</div>' +
+                '<div class="route-bottom-row">' +
+                clusterHtml +
+                methodsHtml +
+                '</div>' +
+                '</div>';
+        },
+
+        createRouteRowsOptimized: function(route, isExpanded) {
+            var rows = [];
+
+            // Main row
+            var mainTr = this.createRouteMainRow(route, isExpanded);
+            mainTr.dataset.key = route.routeId; // For diff tracking
+            rows.push(mainTr);
+
+            // Expanded detail row
+            if (isExpanded) {
+                var detailTr = this.createRouteDetailRow(route);
+                detailTr.dataset.key = route.routeId + '-detail';
+                rows.push(detailTr);
+            }
+
+            return rows;
+        }
+    };
+
+    if (window.DashboardApp) {
+        window.DashboardApp.registerModule('routes', RoutesModule);
+    }
+
+    window.RoutesModule = RoutesModule;
+
+    // Batch operations
+    RoutesModule._selectedRoutes = new Set();
+
+    RoutesModule.toggleSelectAll = function(checked) {
+        var checkboxes = document.querySelectorAll('.route-row-checkbox');
+        checkboxes.forEach(function(cb) {
+            cb.checked = checked;
+            var id = cb.value;
+            if (checked) RoutesModule._selectedRoutes.add(id);
+            else RoutesModule._selectedRoutes.delete(id);
+        });
+        RoutesModule._updateBatchBar();
+    };
+
+    RoutesModule.toggleSelect = function(id, checked) {
+        if (checked) RoutesModule._selectedRoutes.add(id);
+        else RoutesModule._selectedRoutes.delete(id);
+        RoutesModule._updateBatchBar();
+    };
+
+    RoutesModule._updateBatchBar = function() {
+        var bar = document.getElementById('route-batch-bar');
+        var countEl = document.getElementById('route-batch-count');
+        if (bar) bar.style.display = RoutesModule._selectedRoutes.size > 0 ? 'inline-flex' : 'none';
+        if (countEl) countEl.textContent = RoutesModule._selectedRoutes.size;
+    };
+
+    RoutesModule.clearBatch = function() {
+        RoutesModule._selectedRoutes.clear();
+        document.querySelectorAll('.route-row-checkbox').forEach(function(cb) { cb.checked = false; });
+        var selectAll = document.getElementById('route-select-all');
+        if (selectAll) selectAll.checked = false;
+        RoutesModule._updateBatchBar();
+    };
+
+    RoutesModule._getSelectedIds = function() { return Array.from(RoutesModule._selectedRoutes); };
+
+    RoutesModule._showBatchResult = function(resp, successKey, partialKey) {
+        var data = (resp && resp.data) || resp || {};
+        var succeeded = data.succeeded != null ? data.succeeded : (data.total || 0);
+        var failed = data.failed != null ? data.failed : 0;
+        var items = data.items || [];
+        if (failed === 0) {
+            window.DashboardModals.showSuccess(__(successKey).replace('{succeeded}', succeeded));
+        } else {
+            var failedList = items.filter(function(it) { return !it.success; })
+                .map(function(it) { return it.id + ' (' + it.message + ')'; }).join('\n');
+            window.DashboardModals.showWarning(
+                __(partialKey).replace('{succeeded}', succeeded).replace('{failed}', failed) +
+                (failedList ? '\n\n' + failedList : ''));
+        }
+    };
+
+    RoutesModule.batchDelete = function() {
+        var ids = RoutesModule._getSelectedIds();
+        if (ids.length === 0) return;
+        window.DashboardModals.showConfirm(
+            __('batch.deleteConfirmRoutes').replace('{count}', ids.length),
+            async function() {
+                try {
+                    var resp = await window.DashboardApi.endpoints.batchDeleteRoutes(ids, false);
+                    RoutesModule._showBatchResult(resp, 'batch.deleteSuccess', 'batch.deletePartial');
+                } catch (e) {
+                    window.DashboardModals.showError(e.message || __('api.requestFailed'));
+                } finally {
+                    RoutesModule.clearBatch();
+                    await RoutesModule.loadRoutes(true);
+                }
+            }, null, { danger: true }
+        );
+    };
+
+    RoutesModule.batchSetEnabled = function(enabled) {
+        var ids = RoutesModule._getSelectedIds();
+        if (ids.length === 0) return;
+        (async function() {
+            try {
+                var resp = await window.DashboardApi.endpoints.batchSetRoutesEnabled(ids, enabled);
+                RoutesModule._showBatchResult(resp,
+                    enabled ? 'batch.enableSuccess' : 'batch.disableSuccess',
+                    enabled ? 'batch.enablePartial' : 'batch.disablePartial');
+            } catch (e) {
+                window.DashboardModals.showError(e.message || __('api.requestFailed'));
+            } finally {
+                RoutesModule.clearBatch();
+                await RoutesModule.loadRoutes(true);
+            }
+        })();
+    };
+
+    RoutesModule.exportSelected = function() {
+        var ids = RoutesModule._getSelectedIds();
+        if (ids.length === 0) return;
+        var routes = (window.DashboardState.get('data.routes') || []).filter(function(r) {
+            return ids.indexOf(r.routeId) !== -1;
+        });
+        if (routes.length === 0) { window.DashboardModals.showWarning(__('index.noDataExport')); return; }
+        var headers = ['Route ID', 'Order', 'Path', 'Cluster', 'Methods', 'Enabled'];
+        var rows = routes.map(function(r) {
+            return [
+                r.routeId || '',
+                r.order != null ? r.order : '',
+                (r.match && r.match.path) || '-',
+                r.clusterId || '-',
+                (r.match && r.match.methods || []).join(',') || 'ANY',
+                r.enabled === false ? 'false' : 'true'
+            ];
+        });
+        window.DashboardUtils.exportCsv('routes-selected-' + Date.now() + '.csv', headers, rows);
+        window.DashboardModals.showSuccess(__('batch.exportSuccess'));
+    };
+
+    /**
+     * Batch-bind a plugin to all selected routes via the atomic batch-create endpoint.
+     */
+    RoutesModule.batchBindPlugin = function() {
+        var ids = RoutesModule._getSelectedIds();
+        if (ids.length === 0) return;
+        if (window.DashboardBatchPlugin && window.DashboardBatchPlugin.openDialog) {
+            window.DashboardBatchPlugin.openDialog({
+                scope: 'Route',
+                scopeIds: ids,
+                scopeLabel: __('batch.scope.route'),
+                onDone: function() { RoutesModule.clearBatch(); RoutesModule.loadRoutes(true); }
+            });
+        } else {
+            window.DashboardModals.showWarning(__('batch.dialogNotAvailable'));
+        }
+    };
+
+    // Global function for external route creation triggers.
+    window.showAddRouteModal = function() {
+        if (RoutesModule && typeof RoutesModule.showAddModal === 'function') {
+            RoutesModule.showAddModal();
+        }
+    };
+
+})();

@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+    <PackageId>Aneiang.Yarp</PackageId>
+    <Description>YARP gateway base library: dynamic route registration, auto-registration, and config management.</Description>
+    <PackageTags>yarp;reverse-proxy;gateway;api-gateway;dotnet</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Yarp.ReverseProxy" Version="2.3.0" />
+    <PackageReference Include="Grpc.AspNetCore" Version="2.65.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Aneiang.Yarp.Client\Aneiang.Yarp.Client.csproj" />
+    <ProjectReference Include="..\Aneiang.Yarp.Grpc\Aneiang.Yarp.Grpc.csproj" />
+    <ProjectReference Include="..\Aneiang.Yarp.Plugin.Abstractions\Aneiang.Yarp.Plugin.Abstractions.csproj" />
+    <ProjectReference Include="..\Aneiang.Yarp.Storage.Abstractions\Aneiang.Yarp.Storage.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

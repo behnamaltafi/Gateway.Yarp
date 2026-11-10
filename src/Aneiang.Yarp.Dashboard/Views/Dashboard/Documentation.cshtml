@@ -1,0 +1,39 @@
+@using Aneiang.Yarp.OpenApi
+@using Microsoft.Extensions.Options
+@{
+    Layout = "_DashboardLayout";
+    ViewData["Title"] = "API documentation";
+    var catalog = Context.RequestServices.GetService(typeof(AneiangOpenApiCatalog)) as AneiangOpenApiCatalog;
+    var options = (Context.RequestServices.GetService(typeof(IOptions<AneiangOpenApiOptions>)) as IOptions<AneiangOpenApiOptions>)?.Value;
+}
+<div class="container-fluid p-4">
+    <h1 data-i18n="openapi.title">API documentation</h1>
+    @if (catalog != null && options?.Enabled == true)
+    {
+        <p>
+            @if (options.SwaggerEnabled) { <a class="btn btn-primary" href="@options.SwaggerPath" data-i18n="openapi.swagger">Swagger UI</a> }
+            @if (options.ScalarEnabled) { <a class="btn btn-outline-primary" href="@options.ScalarPath" data-i18n="openapi.scalar">Scalar</a> }
+        </p>
+        <h2 data-i18n="openapi.clusters">Enabled services</h2>
+        <ul>
+            @foreach (var document in catalog.GetDocuments())
+            {
+                <li><a href="@document.RoutePattern">@document.Title</a> <code>@document.Name</code></li>
+            }
+            @if (catalog.MergedDocument is { } merged) { <li><a href="@merged.RoutePattern">@merged.Title</a></li> }
+        </ul>
+        <p data-i18n="openapi.settings">Edit cluster Metadata in the existing cluster editor. OpenApi.Enabled selects visibility; OpenApi.Settings contains JSON using the YarpOpenApi cluster options. Save or restore a snapshot, then reload this page.</p>
+        <pre><code>"Metadata": {
+  "OpenApi.Enabled": "true",
+  "OpenApi.Settings": "{\"Title\":\"My API\",\"OpenApiPath\":\"/swagger/v1/swagger.json\",\"AddOnlyPublishedPaths\":true}"
+}</code></pre>
+        <p data-i18n="openapi.split">In Split mode, documentation is available on the Dashboard listener. API calls use the Proxy listener; interactive requests from the documentation listener may be unavailable.</p>
+    }
+    else
+    {
+        <p data-i18n="openapi.disabled">API documentation is disabled. Enable Gateway:OpenApi and configure documentation access in the gateway host.</p>
+    }
+</div>
+@section Scripts {
+    @await Html.PartialAsync("_DashboardPageInit")
+}

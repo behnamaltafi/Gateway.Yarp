@@ -1,0 +1,225 @@
+using System.Text.Json;
+using Aneiang.Yarp.Models;
+using Yarp.ReverseProxy.Configuration;
+
+namespace Aneiang.Yarp.Storage;
+
+/// <summary>
+/// Maps between domain models and storage entities for core persistence.
+/// </summary>
+public static class ConfigEntityMapper
+{
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false
+    };
+
+    #region Route
+
+    /// <summary>
+    /// Converts a <see cref="DynamicRouteConfig"/> to a <see cref="RouteEntity"/>.
+    /// </summary>
+    /// <param name="route">The route.</param>
+    /// <returns>A RouteEntity.</returns>
+    public static RouteEntity ToEntity(this DynamicRouteConfig route) => new()
+    {
+        RouteUid = string.IsNullOrWhiteSpace(route.RouteUid) ? StableUid.FromKey("route", route.Config.RouteId ?? string.Empty) : route.RouteUid,
+        RouteId = route.Config.RouteId ?? string.Empty,
+        ClusterUid = route.ClusterUid,
+        ClusterId = route.Config.ClusterId ?? string.Empty,
+        MatchPath = route.Config.Match?.Path ?? string.Empty,
+        Order = route.Config.Order ?? int.MaxValue,
+        Transforms = route.Config.Transforms is { Count: > 0 } ? JsonSerializer.Serialize(route.Config.Transforms, _jsonOptions) : null,
+        Source = route.Source,
+        CreatedBy = route.CreatedBy,
+        CreatedAt = route.CreatedAt,
+        UpdatedAt = DateTime.Now,
+        ConfigJson = Serialization.YarpJsonConfig.SerializeRoute(route.Config)
+    };
+
+    public static DynamicRouteConfig ToRouteConfig(this RouteEntity entity)
+    {
+        var route = new DynamicRouteConfig
+        {
+            Config = BuildRouteConfig(entity),
+            RouteUid = entity.RouteUid,
+            ClusterUid = entity.ClusterUid,
+            Source = entity.Source,
+            CreatedBy = entity.CreatedBy,
+            CreatedAt = entity.CreatedAt
+        };
+        return route;
+    }
+
+    /// <summary>
+    /// Rebuild the native RouteConfig: prefer the full ConfigJson (carries all advanced
+    /// properties); fall back to scattered columns for legacy rows without ConfigJson.
+    /// </summary>
+    private static RouteConfig BuildRouteConfig(RouteEntity entity)
+    {
+        if (!string.IsNullOrEmpty(entity.ConfigJson))
+        {
+            var parsed = Serialization.YarpJsonConfig.DeserializeRoute(entity.ConfigJson);
+            if (parsed != null)
+            {
+                var normalized = parsed.Order == null ? parsed with { Order = int.MaxValue } : parsed;
+                return normalized with { RouteId = entity.RouteId, ClusterId = entity.ClusterId };
+            }
+        }
+
+        return new RouteConfig
+        {
+            RouteId = entity.RouteId,
+            ClusterId = entity.ClusterId,
+            Match = new RouteMatch { Path = entity.MatchPath },
+            Order = entity.Order,
+            Transforms = string.IsNullOrEmpty(entity.Transforms)
+                ? null
+                : JsonSerializer.Deserialize<List<Dictionary<string, string>>>(entity.Transforms, _jsonOptions)
+                    ?.Select(t => (IReadOnlyDictionary<string, string>)t).ToList()
+        };
+    }
+
+    public static List<DynamicRouteConfig> ToRouteConfigs(this IEnumerable<RouteEntity> entities)
+        => entities.Select(e => e.ToRouteConfig()).ToList();
+
+    #endregion
+
+    #region Cluster
+
+    /// <summary>
+    /// Converts a <see cref="DynamicClusterConfig"/> to a <see cref="ClusterEntity"/>.
+    /// </summary>
+    /// <param name="cluster">The cluster.</param>
+    /// <returns>A ClusterEntity.</returns>
+    public static ClusterEntity ToEntity(this DynamicClusterConfig cluster) => new()
+    {
+        ClusterUid = string.IsNullOrWhiteSpace(cluster.ClusterUid) ? StableUid.FromKey("cluster", cluster.Config.ClusterId ?? string.Empty) : cluster.ClusterUid,
+        ClusterId = cluster.Config.ClusterId ?? string.Empty,
+        LoadBalancingPolicy = cluster.Config.LoadBalancingPolicy,
+        HealthCheckConfig = cluster.HealthCheck != null ? JsonSerializer.Serialize(cluster.HealthCheck, _jsonOptions) : null,
+        Source = cluster.Source,
+        CreatedBy = cluster.CreatedBy,
+        CreatedAt = cluster.CreatedAt,
+        UpdatedAt = DateTime.Now,
+        LastHeartbeat = cluster.LastHeartbeat,
+        ConfigJson = Serialization.YarpJsonConfig.SerializeCluster(cluster.Config)
+    };
+
+    public static DynamicClusterConfig ToClusterConfig(this ClusterEntity entity)
+    {
+        return new DynamicClusterConfig
+        {
+            Config = BuildClusterConfig(entity),
+            ClusterUid = entity.ClusterUid,
+            HealthCheck = string.IsNullOrEmpty(entity.HealthCheckConfig) ? null : JsonSerializer.Deserialize<Models.HealthCheckConfig>(entity.HealthCheckConfig, _jsonOptions),
+            Source = entity.Source,
+            CreatedBy = entity.CreatedBy,
+            CreatedAt = entity.CreatedAt,
+            LastHeartbeat = entity.LastHeartbeat
+        };
+    }
+
+    /// <summary>
+    /// Rebuild the native ClusterConfig: prefer the full ConfigJson (carries all advanced
+    /// properties); fall back to scattered columns for legacy rows. Destinations are loaded
+    /// separately from the destination repository and overwritten by the caller.
+    /// </summary>
+    private static ClusterConfig BuildClusterConfig(ClusterEntity entity)
+    {
+        if (!string.IsNullOrEmpty(entity.ConfigJson))
+        {
+            var parsed = Serialization.YarpJsonConfig.DeserializeCluster(entity.ConfigJson);
+            if (parsed != null)
+                return parsed with { ClusterId = entity.ClusterId };
+        }
+
+        return new ClusterConfig
+        {
+            ClusterId = entity.ClusterId,
+            LoadBalancingPolicy = entity.LoadBalancingPolicy
+        };
+    }
+
+    public static List<DynamicClusterConfig> ToClusterConfigs(this IEnumerable<ClusterEntity> entities)
+        => entities.Select(e => e.ToClusterConfig()).ToList();
+
+    #endregion
+
+    #region Destination
+
+    /// <summary>
+    /// Converts a native YARP destination to its lossless storage representation.
+    /// </summary>
+    public static DestinationEntity ToEntity(this KeyValuePair<string, DestinationConfig> dest, string clusterId) => new()
+    {
+        DestinationId = dest.Key,
+        ClusterId = clusterId,
+        Address = dest.Value.Address ?? string.Empty,
+        Host = dest.Value.Host,
+        Health = dest.Value.Health,
+        Healthy = true,
+        Metadata = dest.Value.Metadata is { Count: > 0 }
+            ? JsonSerializer.Serialize(dest.Value.Metadata, _jsonOptions)
+            : null
+    };
+
+    public static Dictionary<string, DestinationConfig> ToDestinations(this IEnumerable<DestinationEntity> entities)
+        => entities.ToDictionary(
+            e => e.DestinationId,
+            e => new DestinationConfig
+            {
+                Address = e.Address,
+                Host = e.Host,
+                Health = e.Health,
+                Metadata = string.IsNullOrWhiteSpace(e.Metadata)
+                    ? null
+                    : JsonSerializer.Deserialize<IReadOnlyDictionary<string, string>>(e.Metadata, _jsonOptions)
+            });
+
+    #endregion
+
+    #region AuditLog
+
+    /// <summary>
+    /// Converts a <see cref="ConfigChangeAudit"/> to an <see cref="AuditLogEntity"/>.
+    /// </summary>
+    /// <param name="audit">The audit.</param>
+    /// <returns>An AuditLogEntity.</returns>
+    public static AuditLogEntity ToEntity(this ConfigChangeAudit audit) => new()
+    {
+        Id = audit.Id,
+        Action = audit.Action,
+        Target = audit.Target,
+        TargetType = audit.TargetType,
+        TargetUid = audit.TargetUid,
+        TargetKeySnapshot = audit.TargetKeySnapshot ?? audit.Target,
+        TargetDisplayNameSnapshot = audit.TargetDisplayNameSnapshot,
+        Operator = audit.Operator,
+        ClientIp = audit.ClientIp,
+        BeforeData = audit.Before,
+        AfterData = audit.After,
+        Success = audit.Success,
+        ErrorMessage = audit.ErrorMessage,
+        Timestamp = audit.Timestamp
+    };
+
+    public static ConfigChangeAudit ToConfigChangeAudit(this AuditLogEntity entity) => new()
+    {
+        Id = entity.Id,
+        Action = entity.Action,
+        Target = entity.Target,
+        Operator = entity.Operator,
+        ClientIp = entity.ClientIp,
+        Before = entity.BeforeData,
+        After = entity.AfterData,
+        Success = entity.Success,
+        ErrorMessage = entity.ErrorMessage,
+        Timestamp = entity.Timestamp
+    };
+
+    public static List<ConfigChangeAudit> ToConfigChangeAudits(this IEnumerable<AuditLogEntity> entities)
+        => entities.Select(e => e.ToConfigChangeAudit()).ToList();
+    #endregion
+}

@@ -1,0 +1,119 @@
+using System.Reflection;
+
+namespace Aneiang.Yarp.Models;
+
+/// <summary>
+/// Gateway auto-registration options.
+/// Config sources (priority high to low): code > env vars > appsettings.json.
+/// </summary>
+public class GatewayRegistrationOptions
+{
+    /// <summary>JSON config section name.</summary>
+    public const string SectionName = "Gateway:Registration";
+
+    /// <summary>Auto-enabled when <see cref="GatewayUrl"/> is set.</summary>
+    public bool? Enabled { get; set; }
+
+    /// <summary>Gateway URL, e.g. http://192.168.1.100:5000. Required field.</summary>
+    public string? GatewayUrl { get; set; }
+
+    /// <summary>Route name (default: entry assembly name).</summary>
+    public string? RouteName { get; set; }
+
+    /// <summary>Cluster name (default: same as RouteName).</summary>
+    public string? ClusterName { get; set; }
+
+    /// <summary>Match path template, e.g. /api/my-service/{**catch-all}. Default: /{**catch-all}.</summary>
+    public string? MatchPath { get; set; }
+
+    /// <summary>
+    /// Multiple match paths. When set, one YARP route is created per path (all sharing the same cluster).
+    /// Takes precedence over <see cref="MatchPath"/>. gRPC registration mode only.
+    /// </summary>
+    public List<string>? MatchPaths { get; set; }
+
+    /// <summary>
+    /// Cluster load balancing policy: PowerOfTwoChoices (default) / Random / RoundRobin / LeastRequests.
+    /// gRPC registration mode only.
+    /// </summary>
+    public string? LoadBalancingPolicy { get; set; }
+
+    /// <summary>
+    /// Additional destination addresses (besides the auto-detected local address) added to the same cluster
+    /// for load balancing. gRPC registration mode only.
+    /// </summary>
+    public List<string>? ExtraDestinationAddresses { get; set; }
+
+    /// <summary>
+    /// Custom metadata attached to the registration. gRPC registration mode only.
+    /// </summary>
+    public Dictionary<string, string>? Metadata { get; set; }
+
+    /// <summary>
+    /// Destination address, e.g. http://localhost:5001.
+    /// Default: auto-detected from Kestrel binding; localhost is auto-resolved to LAN IP.
+    /// </summary>
+    public string? DestinationAddress { get; set; }
+
+    /// <summary>Route priority - lower = higher precedence. Default: 50.</summary>
+    public int? Order { get; set; }
+
+    /// <summary>Auto-resolve localhost/127.0.0.1/0.0.0.0 to LAN IPv4. Default: true.</summary>
+    public bool? AutoResolveIp { get; set; }
+
+    /// <summary>HTTP timeout in seconds. Default: 5.</summary>
+    public int? TimeoutSeconds { get; set; }
+
+    /// <summary>Bearer token for gateway API auth.</summary>
+    public string? AuthToken { get; set; }
+
+    /// <summary>API Key for gateway API auth. Sent as X-Api-Key header.</summary>
+    public string? ApiKey { get; set; }
+
+    /// <summary>Basic auth username. Must pair with <see cref="BasicAuthPassword"/>.</summary>
+    public string? BasicAuthUsername { get; set; }
+
+    /// <summary>Basic auth password. Must pair with <see cref="BasicAuthUsername"/>.</summary>
+    public string? BasicAuthPassword { get; set; }
+
+    /// <summary>Use gRPC registration instead of the legacy HTTP registration endpoints.</summary>
+    public bool? UseGrpcRegistration { get; set; }
+
+    /// <summary>
+    /// Explicit gRPC port on the gateway (HTTP/2 cleartext).
+    /// When not set, defaults to <c>GatewayUrl.Port + 1</c> in HTTP mode.
+    /// Ignored in HTTPS mode (gRPC uses the same port via ALPN negotiation).
+    /// </summary>
+    public int? GrpcPort { get; set; }
+
+    /// <summary>
+    /// Override downstream path prefix. If set, requests will be forwarded to this path prefix.
+    /// </summary>
+    public string? DownstreamPathPrefix { get; set; }
+
+    /// <summary>
+    /// Custom YARP transforms for fine-grained control. Highest priority.
+    /// </summary>
+    public List<Dictionary<string, string>>? Transforms { get; set; }
+
+    /// <summary>
+    /// Use IP-based instance isolation. Routes requests based on client IP address.
+    /// When enabled, the gateway uses YARP's IpBased load balancing policy to automatically
+    /// route requests to the correct backend instance. No path prefix is needed.
+    /// Default: false.
+    /// </summary>
+    public bool? UseIpIsolation { get; set; }
+
+    /// <summary>
+    /// Enable periodic heartbeat to keep the registration alive on the gateway.
+    /// When disabled, the service still registers on startup but won't send heartbeat.
+    /// Default: true.
+    /// </summary>
+    public bool? HeartbeatEnabled { get; set; }
+
+    /// <summary>
+    /// Heartbeat interval in seconds. Must be between 5 and 3600.
+    /// Default: 30.
+    /// </summary>
+    public int? HeartbeatIntervalSeconds { get; set; }
+}

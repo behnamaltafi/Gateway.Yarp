@@ -1,0 +1,40 @@
+@{
+    var isEn = (ViewBag.Locale as string) == "en-US";
+    ViewData["Title"] = isEn ? "Real-time Logs" : "实时日志";
+    Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+}
+
+@await Html.PartialAsync("~/Views/Dashboard/Partials/_LogsPanel.cshtml")
+
+@section Scripts {
+<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-logs.js"></script>
+
+@await Html.PartialAsync("_DashboardPageInit")
+
+<script>
+    (async function() {
+        if (window.DashboardUtils) DashboardUtils.init();
+        if (window.DashboardApi) DashboardApi.init();
+        if (window.DashboardState) DashboardState.init();
+        if (window.DashboardI18n) DashboardI18n.init();
+        if (window.DashboardStorage) DashboardStorage.init();
+        if (window.DashboardModals) DashboardModals.init();
+        if (window.DashboardEvents) DashboardEvents.setup();
+
+        try {
+            if (window.DashboardApi) {
+                var plugin = await DashboardApi.getPlugin('proxy-log');
+                if (plugin && plugin.enabled) {
+                    if (window.DashboardApp && DashboardApp.modules && DashboardApp.modules.logs) {
+                        if (DashboardApp.modules.logs.init) await DashboardApp.modules.logs.init();
+                        if (DashboardApp.modules.logs.loadLogs) await DashboardApp.modules.logs.loadLogs();
+                    }
+                    hidePluginHint('logs-plugin-hint');
+                }
+            }
+        } catch(e) { console.error('Logs load error:', e); }
+
+        document.dispatchEvent(new CustomEvent('dashboard:ready'));
+    })();
+</script>
+}

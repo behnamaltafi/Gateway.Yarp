@@ -1,0 +1,9 @@
+{
+  "openapi.title": "API documentation",
+  "openapi.swagger": "Swagger UI",
+  "openapi.scalar": "Scalar",
+  "openapi.clusters": "Enabled services",
+  "openapi.settings": "Edit cluster Metadata in the existing cluster editor. OpenApi.Enabled selects visibility; OpenApi.Settings contains JSON using the YarpOpenApi cluster options. Save or restore a snapshot, then reload this page.",
+  "openapi.disabled": "API documentation is disabled. Enable Gateway:OpenApi and configure documentation access in the gateway host.",
+  "openapi.split": "In Split mode, documentation is available on the Dashboard listener. API calls use the Proxy listener; interactive requests from the documentation listener may be unavailable."
+}

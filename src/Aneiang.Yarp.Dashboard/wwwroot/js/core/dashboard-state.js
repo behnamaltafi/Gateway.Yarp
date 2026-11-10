@@ -1,0 +1,402 @@
+/**
+ * Dashboard State Management - Centralized state management
+ */
+(function() {
+    'use strict';
+
+    window.DashboardState = window.DashboardState || {};
+
+    const state = {
+        // App state
+        app: {
+            initialized: false,
+            currentTab: 'overview',
+            currentLocale: 'zh-CN',
+            loading: false
+        },
+
+        // Auth state
+        auth: {
+            token: null,
+            isAuthenticated: false,
+            authMode: 'None'
+        },
+
+        // Data state
+        data: {
+            info: null,
+            clusters: [],
+            routes: [],
+            logs: []
+        },
+
+        // Filter state
+        filters: {
+            clusters: {
+                search: '',
+                health: 'all',
+                editable: 'all',
+                source: 'all'
+            },
+            routes: {
+                search: '',
+                clusterId: '',
+                source: 'all',
+                method: 'all'
+            },
+            logs: {
+                search: '',
+                routeId: '',
+                status: 'all',
+                level: 'all',
+                gatewayOnly: false,
+                autoRefresh: false,
+                refreshInterval: 3000, // 3 seconds
+                maxCount: 100
+            }
+        },
+
+        // UI state
+        ui: {
+            expandedClusters: new Set(),
+            expandedRoutes: new Set(),
+            expandedLogs: new Set(),
+            modals: {},
+            notifications: []
+        },
+
+        // Editor state
+        editor: {
+            mode: 'form', // 'form' or 'json'
+            draft: null,
+            validation: null,
+            history: []
+        }
+    };
+
+    // Track the auto-save interval for cleanup
+    let autoSaveIntervalId = null;
+
+    const subscribers = {};
+
+    window.DashboardState.init = function() {
+        this.restoreState();
+        
+        // Clear any existing auto-save interval first
+        if (autoSaveIntervalId) {
+            clearInterval(autoSaveIntervalId);
+        }
+        
+        autoSaveIntervalId = setInterval(() => this.saveState(), 5000);
+        
+    };
+
+    window.DashboardState.cleanup = function() {
+        if (autoSaveIntervalId) {
+            clearInterval(autoSaveIntervalId);
+            autoSaveIntervalId = null;
+        }
+    };
+
+    window.DashboardState.get = function(path) {
+        if (!path) return state;
+        
+        const keys = path.split('.');
+        let result = state;
+        
+        for (const key of keys) {
+            if (result === null || result === undefined) {
+                return undefined;
+            }
+            result = result[key];
+        }
+        
+        return result;
+    };
+
+    window.DashboardState.set = function(path, value, notify = true) {
+        const keys = path.split('.');
+        let target = state;
+        
+        for (let i = 0; i < keys.length - 1; i++) {
+            const key = keys[i];
+            if (!target[key]) {
+                target[key] = {};
+            }
+            target = target[key];
+        }
+        
+        const lastKey = keys[keys.length - 1];
+        const oldValue = target[lastKey];
+        target[lastKey] = value;
+        
+        if (notify) {
+            this.notify(path, value, oldValue);
+        }
+        
+        return true;
+    };
+
+    window.DashboardState.subscribe = function(path, callback) {
+        if (!subscribers[path]) {
+            subscribers[path] = [];
+        }
+        subscribers[path].push(callback);
+        
+        return () => {
+            subscribers[path] = subscribers[path].filter(cb => cb !== callback);
+        };
+    };
+
+    window.DashboardState.notify = function(path, newValue, oldValue) {
+        if (!subscribers[path]) return;
+        
+        subscribers[path].forEach(callback => {
+            try {
+                callback(newValue, oldValue, path);
+            } catch (error) {
+                console.error('[State] Subscriber error:', error);
+            }
+        });
+    };
+
+    window.DashboardState.getFilteredClusters = function() {
+        const { clusters } = state.data;
+        const { search, health, editable, source } = state.filters.clusters;
+        
+        return clusters.filter(cluster => {
+            // Search filter - search in clusterId AND destinations addresses
+            if (search) {
+                const searchLower = search.toLowerCase();
+                const matchClusterId = cluster.clusterId.toLowerCase().includes(searchLower);
+                // Also search in destination addresses
+                let matchAddress = false;
+                if (cluster.destinations && Array.isArray(cluster.destinations)) {
+                    matchAddress = cluster.destinations.some(dest => 
+                        dest.address && dest.address.toLowerCase().includes(searchLower)
+                    );
+                }
+                if (!matchClusterId && !matchAddress) {
+                    return false;
+                }
+            }
+            
+            // Health filter - use healthyCount/unknownCount/unhealthyCount
+            if (health !== 'all') {
+                if (health === 'Healthy' && cluster.healthyCount === 0) {
+                    return false;
+                } else if (health === 'Unknown' && cluster.unknownCount === 0) {
+                    return false;
+                } else if (health === 'Unhealthy' && cluster.unhealthyCount === 0) {
+                    return false;
+                }
+            }
+            
+            // Editable filter
+            if (editable !== 'all' && cluster.isEditable !== (editable === 'editable')) {
+                return false;
+            }
+            
+            // Source filter
+            if (source !== 'all') {
+                const clusterSource = cluster.source || 'config';
+                if (clusterSource !== source) {
+                    return false;
+                }
+            }
+            
+            return true;
+        });
+    };
+
+    window.DashboardState.getFilteredRoutes = function() {
+        const { routes } = state.data;
+        const { search, clusterId, source, method } = state.filters.routes;
+        
+        return routes.filter(route => {
+            // Search filter - search in routeId, clusterId, AND match path
+            if (search) {
+                const searchLower = search.toLowerCase();
+                const matchRouteId = route.routeId.toLowerCase().includes(searchLower);
+                const matchClusterId = route.clusterId && route.clusterId.toLowerCase().includes(searchLower);
+                // Also search in match path
+                let matchPath = false;
+                if (route.matchPath && route.matchPath.toLowerCase().includes(searchLower)) {
+                    matchPath = true;
+                }
+                if (!matchRouteId && !matchClusterId && !matchPath) {
+                    return false;
+                }
+            }
+            
+            // Cluster filter
+            if (clusterId && route.clusterId !== clusterId) {
+                return false;
+            }
+            
+            // Method filter
+            if (method !== 'all') {
+                if (!route.methods || !route.methods.includes(method)) {
+                    return false;
+                }
+            }
+            
+            // Source filter
+            if (source !== 'all') {
+                const routeSource = route.source || 'config';
+                if (routeSource !== source) {
+                    return false;
+                }
+            }
+            
+            return true;
+        });
+    };
+
+    window.DashboardState.getFilteredLogs = function() {
+        const { logs } = state.data;
+        const { search, routeId, status, level, gatewayOnly, maxCount } = state.filters.logs;
+        
+        let filtered = logs.filter(log => {
+            // Gateway-only filter: show only ProxyRequest/ProxyResponse (exclude YarpEvent)
+            if (gatewayOnly && log.eventType === 'YarpEvent') {
+                return false;
+            }
+            
+            // Search filter - search in message, path, routeId, clusterId
+            if (search) {
+                const searchLower = search.toLowerCase();
+                const matchMessage = log.message?.toLowerCase().includes(searchLower);
+                const matchPath = log.upstreamPath?.toLowerCase().includes(searchLower);
+                const matchRoute = log.routeId?.toLowerCase().includes(searchLower);
+                const matchCluster = log.clusterId?.toLowerCase().includes(searchLower);
+                if (!matchMessage && !matchPath && !matchRoute && !matchCluster) {
+                    return false;
+                }
+            }
+            
+            // Route filter
+            if (routeId && log.routeId !== routeId) {
+                return false;
+            }
+            
+            // Status filter
+            if (status !== 'all') {
+                const statusCode = log.statusCode || 0;
+                if (status === 'success' && (statusCode < 200 || statusCode >= 300)) {
+                    return false;
+                }
+                if (status === 'error' && statusCode < 400) {
+                    return false;
+                }
+            }
+            
+            // Level filter
+            if (level !== 'all' && log.level !== level) {
+                return false;
+            }
+            
+            return true;
+        });
+        
+        // Limit count
+        if (maxCount && filtered.length > maxCount) {
+            filtered = filtered.slice(0, maxCount);
+        }
+        
+        return filtered;
+    };
+
+    window.DashboardState.saveState = function() {
+        try {
+            const toSave = {
+                filters: state.filters,
+                ui: {
+                    expandedClusters: Array.from(state.ui.expandedClusters),
+                    expandedRoutes: Array.from(state.ui.expandedRoutes)
+                },
+                editor: {
+                    mode: state.editor.mode
+                }
+            };
+            
+            localStorage.setItem('dashboard_state', JSON.stringify(toSave));
+        } catch (error) {
+            console.error('[State] Save failed:', error);
+        }
+    };
+
+    window.DashboardState.restoreState = function() {
+        try {
+            const saved = localStorage.getItem('dashboard_state');
+            if (!saved) return;
+            
+            const parsed = JSON.parse(saved);
+            
+            // Restore filters
+            if (parsed.filters) {
+                Object.assign(state.filters, parsed.filters);
+            }
+            
+            if (parsed.ui) {
+                state.ui.expandedClusters = new Set(parsed.ui.expandedClusters || []);
+                state.ui.expandedRoutes = new Set(parsed.ui.expandedRoutes || []);
+            }
+            
+            // Restore editor state
+            if (parsed.editor) {
+                Object.assign(state.editor, parsed.editor);
+            }
+            
+        } catch (error) {
+            console.error('[State] Restore failed:', error);
+        }
+    };
+
+    window.DashboardState.clear = function() {
+        state.data.clusters = [];
+        state.data.routes = [];
+        state.data.logs = [];
+        state.ui.expandedClusters.clear();
+        state.ui.expandedRoutes.clear();
+        state.ui.expandedLogs.clear();
+        
+    };
+
+    window.DashboardState.refreshData = async function(preserveUI = true) {
+        const preservedState = preserveUI ? {
+            expandedClusters: new Set(state.ui.expandedClusters),
+            expandedRoutes: new Set(state.ui.expandedRoutes),
+            expandedLogs: new Set(state.ui.expandedLogs)
+        } : null;
+
+        try {
+            if (window.DashboardApi) {
+                const [clusters, routes] = await Promise.all([
+                    window.DashboardApi.endpoints.getClusters(),
+                    window.DashboardApi.endpoints.getRoutes()
+                ]);
+
+                state.data.clusters = clusters.data || clusters || [];
+                state.data.routes = routes.data || routes || [];
+            }
+
+            if (preservedState) {
+                state.ui.expandedClusters = preservedState.expandedClusters;
+                state.ui.expandedRoutes = preservedState.expandedRoutes;
+                state.ui.expandedLogs = preservedState.expandedLogs;
+                
+                this.notify('ui.expandedClusters', state.ui.expandedClusters);
+                this.notify('ui.expandedRoutes', state.ui.expandedRoutes);
+            }
+
+        } catch (error) {
+            console.error('[State] Refresh failed:', error);
+            throw error;
+        }
+    };
+
+    window.DashboardState.debug = function() {
+    };
+
+})();

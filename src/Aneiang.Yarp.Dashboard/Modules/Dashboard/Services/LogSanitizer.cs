@@ -1,0 +1,266 @@
+using Aneiang.Yarp.Dashboard.Infrastructure.Performance;
+using Aneiang.Yarp.Dashboard.Infrastructure;
+using Aneiang.Yarp.Plugin.ProxyLog;
+using Aneiang.Yarp.Plugin.ProxyLog.Models;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
+using System.Text.Json;
+using System.Text.Unicode;
+
+namespace Aneiang.Yarp.Dashboard.Modules.Dashboard.Services;
+
+/// <summary>
+/// Service for sanitizing sensitive information from log entries.
+/// Handles header blacklisting, query parameter filtering, and JSON field sanitization.
+/// Optimized with cached HashSets and pre-allocated collections.
+/// </summary>
+public sealed class LogSanitizer : ILogSanitizer
+{
+    private static readonly HashSet<string> _defaultHeaderBlacklist = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Authorization", "Cookie", "Set-Cookie", "X-Api-Key", "X-Auth-Token"
+    };
+
+    private static readonly HashSet<string> _defaultJsonFieldSanitizeList = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "password", "token", "secret", "apikey", "api-key", "access_token", "refresh_token"
+    };
+
+    // Reuse JsonSerializerOptions instance to avoid allocations
+    // Use JavaScriptEncoder.Create(UnicodeRanges.All) to preserve Chinese/Unicode characters
+    // (default encoder escapes them to \uXXXX sequences which looks like garbled text)
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        WriteIndented = false,
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Create(UnicodeRanges.All)
+    };
+
+    // Cached options values to avoid repeated property access
+    private readonly int _maxBodyLength;
+    private readonly HashSet<string> _headerBlacklist;
+    private readonly HashSet<string> _jsonFieldSanitizeList;
+    private readonly HashSet<string>? _queryBlacklist; // Cached to avoid creating on each call
+    private readonly bool _hasQueryBlacklist;
+
+    /// <summary>
+    /// Initializes a new instance of LogSanitizer.
+    /// Pre-computes and caches all hash sets for optimal performance.
+    /// </summary>
+    /// <param name="options">Dashboard options.</param>
+    public LogSanitizer(IOptions<DashboardOptions> options)
+    {
+        var opt = options.Value;
+        _maxBodyLength = opt.ProxyLog.LogMaxBodyLength;
+
+        // Build header blacklist - merged default + custom
+        _headerBlacklist = new HashSet<string>(
+            opt.ProxyLog.LogHeaderBlacklist ?? (IEnumerable<string>)_defaultHeaderBlacklist,
+            StringComparer.OrdinalIgnoreCase);
+
+        // Build JSON field sanitize list - merged default + custom
+        _jsonFieldSanitizeList = new HashSet<string>(
+            opt.ProxyLog.LogJsonFieldSanitizeList ?? (IEnumerable<string>)_defaultJsonFieldSanitizeList,
+            StringComparer.OrdinalIgnoreCase);
+
+        // Cache query blacklist to avoid rebuilding on every SanitizeQueryString call
+        if (opt.ProxyLog.LogQueryBlacklist != null && opt.ProxyLog.LogQueryBlacklist.Count > 0)
+        {
+            _queryBlacklist = new HashSet<string>(opt.ProxyLog.LogQueryBlacklist, StringComparer.OrdinalIgnoreCase);
+            _hasQueryBlacklist = true;
+        }
+    }
+
+    /// <summary>
+    /// Sanitizes request/response headers by removing blacklisted headers.
+    /// Returns HeaderList (lightweight List of KeyValuePair) instead of Dictionary
+    /// to eliminate Dictionary hash table overhead (buckets + entries arrays).
+    /// For 5-10 headers, saves ~200-400 bytes per instance.
+    /// </summary>
+    /// <param name="headers">Original headers.</param>
+    /// <returns>Sanitized headers as HeaderList.</returns>
+    public HeaderList? SanitizeHeaders(IHeaderDictionary? headers)
+    {
+        if (headers == null)
+            return null;
+
+        var sanitized = new HeaderList(headers.Count);
+
+        foreach (var header in headers)
+        {
+            sanitized.Add(header.Key, _headerBlacklist.Contains(header.Key)
+                ? "***REDACTED***"
+                : header.Value.ToString());
+        }
+
+        return sanitized;
+    }
+
+    /// <summary>
+    /// Sanitizes query string by removing blacklisted parameters.
+    /// Uses cached blacklist for optimal performance.
+    /// </summary>
+    /// <param name="queryString">Original query string.</param>
+    /// <returns>Sanitized query string.</returns>
+    public string? SanitizeQueryString(string? queryString)
+    {
+        if (string.IsNullOrEmpty(queryString))
+            return queryString;
+
+        if (!_hasQueryBlacklist)
+            return queryString;
+
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(queryString);
+        if (query.Count == 0)
+            return queryString;
+
+        // Pre-allocate with expected capacity
+        var sanitized = new Dictionary<string, string>(query.Count);
+        foreach (var param in query)
+        {
+            sanitized[param.Key] = _queryBlacklist!.Contains(param.Key)
+                ? "***REDACTED***"
+                : param.Value.ToString();
+        }
+
+        // Use pooled StringBuilder for efficient string concatenation
+        var sb = PooledStringBuilder.Rent();
+        try
+        {
+            sb.Append('?');
+            var first = true;
+            foreach (var kvp in sanitized)
+            {
+                if (!first) sb.Append('&');
+                sb.Append(kvp.Key).Append('=').Append(kvp.Value);
+                first = false;
+            }
+            return sb.ToString();
+        }
+        finally
+        {
+            PooledStringBuilder.Return(sb);
+        }
+    }
+
+    /// <summary>
+    /// Sanitizes JSON body by masking sensitive fields.
+    /// </summary>
+    /// <param name="body">Original JSON body.</param>
+    /// <returns>Sanitized JSON body.</returns>
+    public string? SanitizeJsonBody(string? body)
+    {
+        if (string.IsNullOrEmpty(body))
+            return body;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            var sanitized = SanitizeJsonElement(doc.RootElement);
+            return JsonSerializer.Serialize(sanitized, _jsonOptions);
+        }
+        catch (JsonException)
+        {
+            // If not valid JSON, return as-is
+            return body;
+        }
+    }
+
+    /// <summary>
+    /// Sanitizes body content only when its media type is JSON.
+    /// </summary>
+    public string? SanitizeBody(string? body, string? contentType)
+    {
+        if (string.IsNullOrEmpty(body) || !IsJsonContentType(contentType))
+            return body;
+
+        return SanitizeJsonBody(body);
+    }
+
+    private static bool IsJsonContentType(string? contentType)
+    {
+        if (string.IsNullOrWhiteSpace(contentType))
+            return false;
+
+        var separator = contentType.IndexOf(';');
+        var mediaType = separator >= 0 ? contentType.AsSpan(0, separator) : contentType.AsSpan();
+        mediaType = mediaType.Trim();
+        return mediaType.Equals("application/json", StringComparison.OrdinalIgnoreCase) ||
+               mediaType.EndsWith("+json", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Truncates text to maximum allowed length.
+    /// </summary>
+    /// <param name="text">Original text.</param>
+    /// <param name="truncated">Output indicating if text was truncated.</param>
+    /// <returns>Truncated text.</returns>
+    public string? TruncateText(string? text, out bool truncated)
+    {
+        truncated = false;
+
+        if (string.IsNullOrEmpty(text))
+            return text;
+
+        if (text.Length <= _maxBodyLength)
+            return text;
+
+        truncated = true;
+        return text.Substring(0, _maxBodyLength) + "\n... [TRUNCATED]";
+    }
+
+    /// <summary>
+    /// Recursively sanitizes JSON element.
+    /// </summary>
+    private object? SanitizeJsonElement(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.Object => SanitizeJsonObject(element),
+            JsonValueKind.Array => SanitizeJsonArray(element),
+            JsonValueKind.String => element.GetString(),
+            // Keep the original literal so large integers (64-bit ids, epoch-millis
+            // timestamps) never lose precision when re-serialized through decimal.
+            // Cloning preserves the original value kind and raw token.
+            JsonValueKind.Number => element.Clone(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            _ => element.GetRawText()
+        };
+    }
+
+    /// <summary>
+    /// Sanitizes JSON array elements.
+    /// </summary>
+    private List<object?> SanitizeJsonArray(JsonElement element)
+    {
+        var array = element.EnumerateArray();
+        var result = new List<object?>();
+        foreach (var item in array)
+        {
+            result.Add(SanitizeJsonElement(item));
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Sanitizes JSON object by masking sensitive fields.
+    /// </summary>
+    private Dictionary<string, object?> SanitizeJsonObject(JsonElement element)
+    {
+        var result = new Dictionary<string, object?>();
+
+        foreach (var property in element.EnumerateObject())
+        {
+            if (_jsonFieldSanitizeList.Contains(property.Name))
+            {
+                result[property.Name] = "***REDACTED***";
+            }
+            else
+            {
+                result[property.Name] = SanitizeJsonElement(property.Value);
+            }
+        }
+
+        return result;
+    }
+}

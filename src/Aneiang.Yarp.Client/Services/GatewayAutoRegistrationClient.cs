@@ -1,0 +1,636 @@
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
+using System.Text.Json;
+using GatewayGrpc = Aneiang.Yarp.GatewayRegistry.GatewayRegistry;
+using Aneiang.Yarp.GatewayRegistry;
+using Aneiang.Yarp.Models;
+using Grpc.Core;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+namespace Aneiang.Yarp.Services;
+
+/// <summary>
+/// Gateway auto-registration client. Local services use this to register routes with a remote gateway,
+/// so traffic goes through the gateway pipeline before forwarding to the local service.
+///
+/// Config priority (high to low): code > env vars > appsettings.json.
+/// </summary>
+public class GatewayAutoRegistrationClient
+{
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly GatewayRegistrationOptions _options;
+    private readonly IServiceProvider _serviceProvider;
+    private readonly ILogger<GatewayAutoRegistrationClient> _logger;
+    private readonly KestrelAutoConfigService _kestrelConfig;
+    private readonly GatewayGrpc.GatewayRegistryClient _grpcClient;
+
+    /// <summary>Initializes a new instance of GatewayAutoRegistrationClient.</summary>
+    /// <param name="httpClientFactory">HTTP client factory.</param>
+    /// <param name="options">Gateway registration options.</param>
+    /// <param name="serviceProvider">Service provider.</param>
+    /// <param name="logger">Logger instance.</param>
+    /// <param name="kestrelConfig">Kestrel auto-configuration service.</param>
+    /// <param name="grpcClient">gRPC gateway registry client.</param>
+    public GatewayAutoRegistrationClient(
+        IHttpClientFactory httpClientFactory,
+        IOptions<GatewayRegistrationOptions> options,
+        IServiceProvider serviceProvider,
+        ILogger<GatewayAutoRegistrationClient> logger,
+        KestrelAutoConfigService kestrelConfig,
+        GatewayGrpc.GatewayRegistryClient grpcClient)
+    {
+        _httpClientFactory = httpClientFactory;
+        _options = options.Value;
+        _serviceProvider = serviceProvider;
+        _logger = logger;
+        _kestrelConfig = kestrelConfig;
+        _grpcClient = grpcClient;
+    }
+
+    /// <summary>Register this service's route with the gateway.</summary>
+    public async Task<bool> RegisterAsync(CancellationToken ct = default)
+    {
+        if (!RegistrationOptionsResolver.IsEnabled(_options))
+        {
+            _logger.LogDebug("Auto-registration disabled (no GatewayUrl configured)");
+            return false;
+        }
+
+        var gatewayUrl = _options.GatewayUrl;
+        var routeName = RegistrationOptionsResolver.GetRouteName(_options);
+        var clusterName = RegistrationOptionsResolver.GetClusterName(_options);
+        var matchPath = RegistrationOptionsResolver.GetMatchPath(_options);
+        var destinationAddress = RegistrationOptionsResolver.GetDestinationAddress(_options, _serviceProvider);
+        var order = RegistrationOptionsResolver.GetOrder(_options);
+        var transforms = RegistrationOptionsResolver.GetTransforms(_options);
+        var useIpIsolation = RegistrationOptionsResolver.UseIpIsolation(_options);
+        var useGrpcRegistration = _options.UseGrpcRegistration == true;
+
+        if (string.IsNullOrWhiteSpace(gatewayUrl) || string.IsNullOrWhiteSpace(destinationAddress))
+        {
+            _logger.LogWarning("Registration info incomplete, skipping");
+            return false;
+        }
+
+        _logger.LogDebug("Registering: Route={RouteName}, Match={MatchPath}, Dest={DestAddress}, GW={GatewayUrl}",
+            routeName, matchPath, destinationAddress, gatewayUrl);
+
+        if (transforms != null && transforms.Count > 0)
+            _logger.LogDebug("Transforms: {Transforms}", JsonSerializer.Serialize(transforms));
+
+        if (useIpIsolation)
+        {
+            _logger.LogDebug("IP-based isolation enabled. Gateway will route based on client IP address.");
+        }
+
+        if (RegistrationOptionsResolver.GetAutoResolveIp(_options))
+        {
+            var (resolvedAddress, warning) = ResolveLocalAddressWithCheck(destinationAddress);
+            destinationAddress = resolvedAddress;
+
+            if (!string.IsNullOrWhiteSpace(warning))
+            {
+                _logger.LogWarning(warning);
+            }
+
+            try
+            {
+                var uri = new Uri(destinationAddress);
+                _kestrelConfig.EnsureListeningOnAny(uri.Port);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to auto-configure Kestrel");
+            }
+        }
+
+        try
+        {
+            if (useGrpcRegistration)
+            {
+                return await RegisterWithGrpcAsync(routeName, clusterName, destinationAddress, ct).ConfigureAwait(false);
+            }
+
+            using var http = _httpClientFactory.CreateClient();
+            http.Timeout = TimeSpan.FromSeconds(RegistrationOptionsResolver.GetTimeoutSeconds(_options));
+            ApplyAuthHeaders(http);
+
+            var json = JsonSerializer.Serialize(new
+            {
+                routeName,
+                clusterName,
+                matchPath,
+                destinationAddress,
+                order,
+                transforms,
+                useIpIsolation,
+                clientIp = useIpIsolation ? GetLocalIpv4() : null
+            }, _jsonOptions);
+
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var url = $"{gatewayUrl.TrimEnd('/')}/api/gateway/register-route";
+
+            var response = await http.PostAsync(url, content, ct).ConfigureAwait(false);
+            var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation("Registration OK: {Body}", body);
+                return true;
+            }
+
+            _logger.LogWarning("Registration failed ({StatusCode}): {Body}", (int)response.StatusCode, body);
+            return false;
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogWarning(ex, "Gateway unreachable ({Url}), skipping", gatewayUrl);
+            return false;
+        }
+        catch (TaskCanceledException)
+        {
+            _logger.LogWarning("Registration timed out ({Url}), skipping", gatewayUrl);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected registration error");
+            return false;
+        }
+    }
+
+    /// <summary>Unregister this service's route from the gateway.</summary>
+    public async Task<bool> UnregisterAsync(CancellationToken ct = default)
+    {
+        var gatewayUrl = _options.GatewayUrl;
+        var routeName = RegistrationOptionsResolver.GetRouteName(_options);
+        var useGrpcRegistration = _options.UseGrpcRegistration == true;
+
+        if (string.IsNullOrWhiteSpace(gatewayUrl))
+        {
+            _logger.LogWarning("GatewayUrl not configured, skipping unregistration");
+            return false;
+        }
+
+        try
+        {
+            if (useGrpcRegistration)
+            {
+                try
+                {
+                    var callOptions = BuildGrpcCallOptions(ct);
+                    var grpcResponse = await _grpcClient.UnregisterServiceAsync(new UnregisterServiceRequest
+                    {
+                        ServiceId = routeName
+                    }, callOptions).ConfigureAwait(false);
+
+                    if (grpcResponse.Success)
+                    {
+                        _logger.LogInformation("gRPC unregistration OK: {Message}", grpcResponse.Message);
+                        return true;
+                    }
+
+                    _logger.LogWarning("gRPC unregistration failed: {Message}", grpcResponse.Message);
+                    return false;
+                }
+                catch (RpcException ex)
+                {
+                    _logger.LogWarning(ex, "gRPC unregistration RPC error: {Status}", ex.Status);
+                    return false;
+                }
+            }
+
+            using var http = _httpClientFactory.CreateClient();
+            http.Timeout = TimeSpan.FromSeconds(RegistrationOptionsResolver.GetTimeoutSeconds(_options));
+            ApplyAuthHeaders(http);
+
+            var clientIp = RegistrationOptionsResolver.UseIpIsolation(_options) ? GetLocalIpv4() : null;
+            var url = $"{gatewayUrl.TrimEnd('/')}/api/gateway/{routeName}";
+            if (!string.IsNullOrWhiteSpace(clientIp))
+                url += $"?clientIp={Uri.EscapeDataString(clientIp)}";
+
+            _logger.LogInformation("Unregistering: [{RouteName}] (ClientIp: {ClientIp})", routeName, clientIp ?? "N/A");
+
+            var response = await http.DeleteAsync(url, ct).ConfigureAwait(false);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+                _logger.LogInformation("Unregistration OK: {Body}", body);
+                return true;
+            }
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                _logger.LogInformation("Route [{RouteName}] no longer exists, ignoring", routeName);
+                return true;
+            }
+
+            _logger.LogWarning("Unregistration failed ({StatusCode})", (int)response.StatusCode);
+            return false;
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogWarning(ex, "Gateway unreachable, skipping unregistration");
+            return false;
+        }
+        catch (TaskCanceledException)
+        {
+            _logger.LogWarning("Unregistration timed out, skipping");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected unregistration error");
+            return false;
+        }
+    }
+
+    private async Task<bool> RegisterWithGrpcAsync(
+        string routeName,
+        string clusterName,
+        string destinationAddress,
+        CancellationToken ct)
+    {
+        try
+        {
+            // Phase 2 contract: multi-path (one route per path, shared cluster),
+            // multi-destination (all join the cluster for load balancing),
+            // load balancing policy and metadata.
+            var paths = RegistrationOptionsResolver.GetMatchPaths(_options);
+            var extraDestinations = RegistrationOptionsResolver.GetExtraDestinationAddresses(_options);
+            var metadata = RegistrationOptionsResolver.GetMetadata(_options);
+
+            var request = new RegisterServiceRequest
+            {
+                ServiceId = routeName,
+                ServiceName = clusterName,
+                LoadBalancing = MapLoadBalancingPolicy(_options.LoadBalancingPolicy)
+            };
+            request.Paths.AddRange(paths);
+            request.Metadata.Add(metadata);
+
+            request.Destinations.Add(new Destination
+            {
+                DestinationId = "d1",
+                Address = destinationAddress,
+                Enabled = true
+            });
+            for (int i = 0; i < extraDestinations.Count; i++)
+            {
+                request.Destinations.Add(new Destination
+                {
+                    DestinationId = $"d{i + 2}",
+                    Address = extraDestinations[i],
+                    Enabled = true
+                });
+            }
+
+            var callOptions = BuildGrpcCallOptions(ct);
+            var response = await _grpcClient.RegisterServiceAsync(request, callOptions).ConfigureAwait(false);
+
+            if (response.Success)
+            {
+                _logger.LogInformation("gRPC registration OK: {Message}", response.Message);
+                return true;
+            }
+
+            _logger.LogWarning("gRPC registration failed: {Message}", response.Message);
+            return false;
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogWarning(ex, "gRPC registration RPC error: {Status}", ex.Status);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Map a load balancing policy name (case-insensitive) to the proto enum.
+    /// Unknown/null values fall back to PowerOfTwoChoices (proto default).
+    /// </summary>
+    private static GatewayRegistry.LoadBalancingPolicy MapLoadBalancingPolicy(string? policy)
+    {
+        return policy?.Trim().ToLowerInvariant() switch
+        {
+            "random" => GatewayRegistry.LoadBalancingPolicy.Random,
+            "roundrobin" or "round_robin" => GatewayRegistry.LoadBalancingPolicy.RoundRobin,
+            "leastrequests" or "least_requests" => GatewayRegistry.LoadBalancingPolicy.LeastRequests,
+            "poweroftwochoices" or "power_of_two_choices" => GatewayRegistry.LoadBalancingPolicy.PowerOfTwoChoices,
+            _ => GatewayRegistry.LoadBalancingPolicy.PowerOfTwoChoices
+        };
+    }
+
+    private void ApplyAuthHeaders(HttpClient http)
+    {
+        if (!string.IsNullOrWhiteSpace(_options.AuthToken))
+        {
+            http.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _options.AuthToken);
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_options.BasicAuthUsername) && !string.IsNullOrWhiteSpace(_options.BasicAuthPassword))
+        {
+            var creds = Convert.ToBase64String(
+                Encoding.UTF8.GetBytes($"{_options.BasicAuthUsername}:{_options.BasicAuthPassword}"));
+            http.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Basic", creds);
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(_options.ApiKey))
+            http.DefaultRequestHeaders.TryAddWithoutValidation("X-Api-Key", _options.ApiKey);
+    }
+
+    /// <summary>
+    /// Build gRPC call options with auth metadata from <see cref="GatewayRegistrationOptions"/>.
+    /// Supports Bearer token, Basic auth, and API Key.
+    /// </summary>
+    private CallOptions BuildGrpcCallOptions(CancellationToken ct = default)
+    {
+        var metadata = new Metadata();
+
+        if (!string.IsNullOrWhiteSpace(_options.AuthToken))
+        {
+            metadata.Add("Authorization", $"Bearer {_options.AuthToken}");
+        }
+        else if (!string.IsNullOrWhiteSpace(_options.BasicAuthUsername) && !string.IsNullOrWhiteSpace(_options.BasicAuthPassword))
+        {
+            var creds = Convert.ToBase64String(
+                Encoding.UTF8.GetBytes($"{_options.BasicAuthUsername}:{_options.BasicAuthPassword}"));
+            metadata.Add("Authorization", $"Basic {creds}");
+        }
+        else if (!string.IsNullOrWhiteSpace(_options.ApiKey))
+        {
+            metadata.Add("x-api-key", _options.ApiKey);
+        }
+
+        return new CallOptions(headers: metadata, cancellationToken: ct);
+    }
+
+    /// <summary>Resolve localhost/127.0.0.1/0.0.0.0 in destination to LAN IPv4 with listening check.</summary>
+    /// <returns>Tuple of (resolved address, warning message if any).</returns>
+    private (string address, string? warning) ResolveLocalAddressWithCheck(string address)
+    {
+        if (string.IsNullOrWhiteSpace(address)) return (address, null);
+
+        // Wildcard host bindings (* and +) are valid Kestrel/ASP.NET Core ways to listen
+        // on all interfaces (both IPv4 and IPv6), but Uri/UriBuilder reject them because
+        // they are not legal DNS names. Normalize to localhost purely for scheme/port
+        // extraction — the original binding semantics are tracked via the wildcard flag
+        // so the "listening on all interfaces" check still runs correctly.
+        var parsedAddress = address;
+        var isWildcardHost = TryNormalizeWildcardHost(ref parsedAddress);
+
+        try
+        {
+            var uri = new Uri(parsedAddress);
+            var host = uri.Host;
+            var isLocalOrAny = isWildcardHost ||
+                host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+                host.Equals("127.0.0.1") || host.Equals("0.0.0.0") ||
+                host.Equals("::1") || host.Equals("[::1]");
+
+            if (isLocalOrAny)
+            {
+                bool isListeningOnAny = IsListeningOnAnyAddress(uri.Port);
+                var ip = GetLocalIpv4();
+                if (ip != null)
+                {
+                    var resolved = $"{uri.Scheme}://{ip}:{uri.Port}{uri.PathAndQuery}";
+
+                    if (!isListeningOnAny)
+                    {
+                        var warning = $"Service is listening on localhost only (port {uri.Port}), but registered with LAN IP {ip}. " +
+                            $"Cross-machine access will fail until you configure Kestrel to listen on all interfaces. " +
+                            $"Use a wildcard binding (covers both IPv4 and IPv6) or 0.0.0.0 (IPv4 only):\n" +
+                            $"  - launchSettings.json: \"applicationUrl\": \"http://*:{uri.Port}\" (or http://+:{uri.Port})\n" +
+                            $"  - Or Program.cs: .UseUrls(\"http://*:{uri.Port}\")";
+
+                        return (resolved, warning);
+                    }
+
+                    return (resolved, null);
+                }
+            }
+        }
+        catch (UriFormatException ex)
+        {
+            _logger.LogWarning(ex, "Invalid URI format in address: {Address}", address);
+        }
+
+        return (address, null);
+    }
+
+    /// <summary>
+    /// Detect Kestrel/ASP.NET Core wildcard host bindings (<c>*</c> and <c>+</c>) in an
+    /// <c>applicationUrl</c>-style value and rewrite the host to <c>localhost</c> so it can be
+    /// parsed by <see cref="Uri"/>. Returns <c>true</c> when a wildcard host was found and
+    /// replaced (the caller then treats the address as "listening on all interfaces").
+    /// Non-wildcard values are returned unchanged with <c>false</c>.
+    /// </summary>
+    /// <param name="address">The URL to normalize; modified in place when a wildcard host is found.</param>
+    /// <returns><c>true</c> if a wildcard host (<c>*</c>/<c>+</c>) was replaced; otherwise <c>false</c>.</returns>
+    private static bool TryNormalizeWildcardHost(ref string address)
+    {
+        // Match "http(s)://*:port..." or "http(s)://+:port..." — the wildcard appears as the host
+        // segment right after the scheme authority prefix. Keep it tight so a literal "*" in a
+        // path/query is never touched.
+        var colonSlash = address.IndexOf("://", StringComparison.OrdinalIgnoreCase);
+        if (colonSlash < 0) return false;
+        var hostStart = colonSlash + 3;
+        if (hostStart >= address.Length) return false;
+
+        var wc = address[hostStart];
+        if (wc != '*' && wc != '+') return false;
+
+        // Ensure the wildcard is the host (followed by ':' or '/' or end), not part of a name.
+        var afterHost = hostStart + 1;
+        if (afterHost < address.Length && address[afterHost] != ':' && address[afterHost] != '/')
+        {
+            return false;
+        }
+
+        var scheme = address.Substring(0, hostStart);
+        var rest = address.Substring(afterHost);
+        address = scheme + "localhost" + rest;
+        return true;
+    }
+
+    /// <summary>Check if the service is listening on 0.0.0.0 (all interfaces) for the given port.</summary>
+    private static bool IsListeningOnAnyAddress(int port)
+    {
+        try
+        {
+            var listeners = System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties()
+                .GetActiveTcpListeners()
+                .Where(l => l.Port == port);
+
+            foreach (var listener in listeners)
+            {
+                if (listener.Address.Equals(IPAddress.Any) ||
+                    listener.Address.Equals(IPAddress.IPv6Any))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        catch
+        {
+            return true;
+        }
+    }
+
+    private static string? GetLocalIpv4()
+    {
+        try
+        {
+            return Dns.GetHostEntry(Dns.GetHostName()).AddressList
+                .FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(ip))
+                ?.ToString();
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Send a heartbeat to the gateway to keep the registration alive.
+    /// Gateway uses heartbeat to detect stale registrations.
+    /// </summary>
+    public async Task<bool> HeartbeatAsync(CancellationToken ct = default)
+    {
+        var gatewayUrl = _options.GatewayUrl;
+        var routeName = RegistrationOptionsResolver.GetRouteName(_options);
+        var useGrpcRegistration = _options.UseGrpcRegistration == true;
+
+        if (string.IsNullOrWhiteSpace(gatewayUrl))
+            return false;
+
+        try
+        {
+            if (useGrpcRegistration)
+            {
+                try
+                {
+                    var callOptions = BuildGrpcCallOptions(ct);
+                    var grpcResponse = await _grpcClient.HeartbeatAsync(new HeartbeatRequest
+                    {
+                        ServiceId = routeName
+                    }, callOptions).ConfigureAwait(false);
+
+                    return grpcResponse.Success;
+                }
+                catch (RpcException ex)
+                {
+                    _logger.LogWarning(ex, "gRPC heartbeat RPC error: {Status}", ex.Status);
+                    return false;
+                }
+            }
+
+            using var http = _httpClientFactory.CreateClient();
+            http.Timeout = TimeSpan.FromSeconds(10);
+            ApplyAuthHeaders(http);
+
+            var clientIp = RegistrationOptionsResolver.UseIpIsolation(_options) ? GetLocalIpv4() : null;
+            var url = $"{gatewayUrl.TrimEnd('/')}/api/gateway/{routeName}/heartbeat";
+            if (!string.IsNullOrWhiteSpace(clientIp))
+                url += $"?clientIp={Uri.EscapeDataString(clientIp)}";
+
+            var response = await http.PostAsync(url, null, ct).ConfigureAwait(false);
+
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Query services registered on the gateway via gRPC (requires <c>UseGrpcRegistration</c>).
+    /// Returns null when gRPC registration mode is disabled or the call fails.
+    /// </summary>
+    public async Task<IReadOnlyList<ServiceInfo>?> GetServicesAsync(bool activeOnly = false, CancellationToken ct = default)
+    {
+        if (_options.UseGrpcRegistration != true)
+        {
+            _logger.LogDebug("GetServicesAsync is only available in gRPC registration mode");
+            return null;
+        }
+
+        try
+        {
+            var callOptions = BuildGrpcCallOptions(ct);
+            var response = await _grpcClient.GetServicesAsync(new GetServicesRequest
+            {
+                ActiveOnly = activeOnly
+            }, callOptions).ConfigureAwait(false);
+
+            return response.Services.ToList();
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogWarning(ex, "gRPC GetServices RPC error: {Status}", ex.Status);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Update the destinations of this service's cluster on the gateway via gRPC
+    /// (requires <c>UseGrpcRegistration</c>). Pass the full destination set — it replaces the existing one.
+    /// </summary>
+    public async Task<bool> UpdateDestinationsAsync(IReadOnlyList<string> addresses, CancellationToken ct = default)
+    {
+        if (_options.UseGrpcRegistration != true)
+        {
+            _logger.LogWarning("UpdateDestinationsAsync is only available in gRPC registration mode");
+            return false;
+        }
+
+        if (addresses == null || addresses.Count == 0)
+        {
+            _logger.LogWarning("UpdateDestinationsAsync requires at least one address");
+            return false;
+        }
+
+        try
+        {
+            var clusterName = RegistrationOptionsResolver.GetClusterName(_options);
+            var request = new UpdateDestinationsRequest { ServiceId = clusterName };
+            for (int i = 0; i < addresses.Count; i++)
+            {
+                if (string.IsNullOrWhiteSpace(addresses[i])) continue;
+                request.Destinations.Add(new Destination
+                {
+                    DestinationId = $"d{i + 1}",
+                    Address = addresses[i].Trim(),
+                    Enabled = true
+                });
+            }
+
+            var callOptions = BuildGrpcCallOptions(ct);
+            var response = await _grpcClient.UpdateDestinationsAsync(request, callOptions).ConfigureAwait(false);
+
+            if (!response.Success)
+                _logger.LogWarning("gRPC UpdateDestinations failed: {Message}", response.Message);
+            return response.Success;
+        }
+        catch (RpcException ex)
+        {
+            _logger.LogWarning(ex, "gRPC UpdateDestinations RPC error: {Status}", ex.Status);
+            return false;
+        }
+    }
+}

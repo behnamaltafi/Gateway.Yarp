@@ -1,0 +1,91 @@
+using Aneiang.Yarp.Dashboard.Infrastructure.Middleware;
+using Aneiang.Yarp.Models;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
+using Aneiang.Yarp.Infrastructure.Middleware;
+
+namespace Aneiang.Yarp.Dashboard.Infrastructure.Yarp;
+
+/// <summary>
+/// Built-in request/response transform middleware.
+/// Adds common headers, removes security-sensitive headers, and applies global transforms.
+/// Runs before YARP proxy pipeline.
+/// </summary>
+internal sealed class BuiltinTransformMiddleware : GatewayMiddlewareBase
+{
+    private readonly BuiltinTransformOptions _options;
+
+    public BuiltinTransformMiddleware(RequestDelegate next, IOptions<BuiltinTransformOptions> options, IOptions<GatewayMiddlewareOptions> dashboardOptions)
+        : base(next, dashboardOptions)
+    {
+        _options = options.Value;
+    }
+
+    public async Task InvokeAsync(HttpContext context)
+    {
+        if (IsDashboardRequest(context))
+        {
+            await Next(context);
+            return;
+        }
+
+        // Add X-Request-Id if not present
+        if (_options.EnableRequestIdHeader &&
+            !context.Request.Headers.ContainsKey("X-Request-Id"))
+        {
+            var requestId = System.Diagnostics.Activity.Current?.TraceId.ToString() ?? Guid.NewGuid().ToString("N");
+            context.Request.Headers["X-Request-Id"] = requestId;
+        }
+
+        // Add X-Forwarded-For
+        if (_options.EnableForwardedForHeader)
+        {
+            var remoteIp = context.Connection.RemoteIpAddress?.ToString();
+            if (!string.IsNullOrEmpty(remoteIp))
+            {
+                var existing = context.Request.Headers["X-Forwarded-For"].ToString();
+                context.Request.Headers["X-Forwarded-For"] =
+                    string.IsNullOrEmpty(existing) ? remoteIp : $"{existing}, {remoteIp}";
+            }
+        }
+
+        await Next(context);
+
+        // Remove Server header
+        if (_options.RemoveServerHeader)
+        {
+            context.Response.OnStarting(() =>
+            {
+                context.Response.Headers.Remove("Server");
+                return Task.CompletedTask;
+            });
+        }
+
+        // Remove X-Powered-By header
+        if (_options.RemovePoweredByHeader)
+        {
+            context.Response.OnStarting(() =>
+            {
+                context.Response.Headers.Remove("X-Powered-By");
+                return Task.CompletedTask;
+            });
+        }
+
+        // Add custom response headers
+        if (_options.AddResponseHeaders != null)
+        {
+            context.Response.OnStarting(() =>
+            {
+                foreach (var (key, value) in _options.AddResponseHeaders)
+                {
+                    if (!context.Response.Headers.ContainsKey(key))
+                    {
+                        context.Response.Headers[key] = value;
+                    }
+                }
+                return Task.CompletedTask;
+            });
+        }
+    }
+}
+

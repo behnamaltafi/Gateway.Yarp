@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Description>Secure, dynamic OpenAPI documentation for Aneiang.Yarp.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\Aneiang.Yarp\Aneiang.Yarp.csproj" />
+    <PackageReference Include="MMLib.OpenApiForYarp" Version="1.1.0" />
+    <PackageReference Include="MMLib.OpenApiForYarp.SwaggerUI" Version="1.1.0" />
+    <PackageReference Include="MMLib.OpenApiForYarp.Scalar" Version="1.1.0" />
+  </ItemGroup>
+</Project>
