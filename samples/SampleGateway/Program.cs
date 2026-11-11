@@ -5,6 +5,7 @@ using Aneiang.Yarp.Storage.Sqlite;
 using Microsoft.Extensions.Options;
 using Serilog;
 using Aneiang.Yarp.OpenApi;
+using Aneiang.Yarp.Iam;
 
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
@@ -23,6 +24,14 @@ try
     Log.Information("Starting SampleGateway with Serilog...");
     
     var builder = WebApplication.CreateBuilder(args);
+    var localSettings = Environment.GetEnvironmentVariable("IAM_LOCAL_SETTINGS");
+    if (!string.IsNullOrWhiteSpace(localSettings))
+    {
+        builder.Configuration.Sources.Clear();
+        builder.Configuration.AddJsonFile(localSettings, optional: false, reloadOnChange: false).AddEnvironmentVariables().AddCommandLine(args);
+    }
+    var iamEnabled = builder.Configuration.GetValue<bool>("Gateway:Iam:Enabled");
+    if (iamEnabled) builder.Services.AddAneiangIamGateway(builder.Configuration);
 
     // Replace default logger with Serilog
     builder.Host.UseSerilog();
@@ -30,7 +39,7 @@ try
     // Enable HTTP/2 on all endpoints (required for gRPC)
     // When Kestrel:Endpoints has 2+ entries, auto-injection of the +1 gRPC port is
     // skipped automatically, so role-based routing keeps working.
-    builder.UseYarpKestrelAutoConfig();
+    if (string.IsNullOrWhiteSpace(localSettings)) builder.UseYarpKestrelAutoConfig();
 
     // Gateway: one-liner — auto-loads ReverseProxy routes/clusters + dynamic config
     builder.Services.AddAneiangYarp(proxy => proxy.AddAneiangOpenApi(), enableRegistration:false);
@@ -51,14 +60,21 @@ try
 
     var app = builder.Build();
     app.UseRouting();
+    if (iamEnabled) app.UseAuthentication();
     app.UseCors();
+    if (iamEnabled) app.UseAuthorization();
     app.UseAneiangOpenApi();
 
     // Register Dashboard middleware + MapReverseProxy (mode-aware).
     // Deployment-aware routing and health-check middleware are mounted automatically when deployment services are registered.
-    app.UseAneiangYarpDashboard();
+    app.UseAneiangYarpDashboard(new DashboardApplicationBuilderExtensions.DashboardUseOptions
+    {
+        AutoUseAuthorization = !iamEnabled,
+        AutoUseCors = !iamEnabled
+    });
 
     app.MapControllers();
+    if (iamEnabled) app.MapAneiangIamManifestExport();
     app.MapAneiangYarpGrpc(); // gRPC GatewayRegistry service (HTTP/2)
 
     // Log startup summary
@@ -72,7 +88,7 @@ try
         Console.WriteLine($"  Endpoint:           {ep.EndpointName} → {ep.IpAddress}:{ep.Port} ({ep.Role})");
     Console.WriteLine("  Dashboard:          /aneiang");
     Console.WriteLine("  Login:              /aneiang/login");
-    Console.WriteLine("  Credentials:        admin / demo123");
+    Console.WriteLine("  Credentials:        configured outside source control");
     Console.WriteLine("  Health:             /health, /ready, /live");
     Console.WriteLine("  API documentation:  /swagger, /scalar (Dashboard authentication)");
     Console.WriteLine("  Logger:             Serilog");
