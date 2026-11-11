@@ -368,3 +368,6 @@ website/
 
 # VS Code C# Dev Tools - Auto-generated runners
 .vscodecsdt/Runners/
+
+# Test-generated artifacts
+.gapcode/
