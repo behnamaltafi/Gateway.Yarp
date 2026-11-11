@@ -540,7 +540,12 @@ public sealed class PluginRuntimeDomainManager : IPluginRuntimeDomainManager, IA
 
         foreach (var pluginId in ProxyPluginOrder)
             if (plugins.TryGetValue(pluginId, out var plugin))
-                plugin.ConfigureProxyPipeline(builder);
+            {
+                if (pluginId is "request-retry" or "response-cache" or "proxy-log")
+                    builder.UseWhen(context => !context.Items.ContainsKey("Aneiang.Iam.OperationKey"), branch =>
+                        plugin.ConfigureProxyPipeline(new ReverseProxyApplicationBuilderAdapter(branch)));
+                else plugin.ConfigureProxyPipeline(builder);
+            }
         builder.Run(ContinueHostPipelineAsync);
         return builder.Build();
     }

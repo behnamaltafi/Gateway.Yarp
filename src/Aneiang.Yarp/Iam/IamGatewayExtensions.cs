@@ -5,6 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.Http;
+using System.Net;
 
 namespace Aneiang.Yarp.Iam;
 
@@ -24,9 +26,14 @@ public static class IamGatewayExtensions
         services.TryAddSingleton<IIamPolicyBundleProvider>(sp => sp.GetRequiredService<IamPolicyBundleStore>());
         services.TryAddSingleton<IamPolicyEvaluator>();
         services.TryAddSingleton<IIamEntitlementCache, IamEntitlementCache>();
-        services.TryAddSingleton<IIamEntitlementSource, IamHttpEntitlementSource>();
-        services.AddHttpClient<IamHttpEntitlementSource>((sp, client) => client.Timeout = sp.GetRequiredService<IOptions<IamGatewayOptions>>().Value.IamTimeout);
-        services.AddHttpClient("Aneiang.Iam.Bundle", (sp, client) => client.Timeout = sp.GetRequiredService<IOptions<IamGatewayOptions>>().Value.IamTimeout);
+        services.TryAddSingleton<IIamEntitlementSource>(sp => sp.GetRequiredService<IamHttpEntitlementSource>());
+        services.TryAddSingleton<IIamServiceTokenProvider, IamServiceTokenProvider>();
+        services.AddHttpClient<IamHttpEntitlementSource>((sp, client) => client.Timeout = sp.GetRequiredService<IOptions<IamGatewayOptions>>().Value.IamTimeout)
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
+        services.AddHttpClient("Aneiang.Iam.Bundle", (sp, client) => client.Timeout = sp.GetRequiredService<IOptions<IamGatewayOptions>>().Value.IamTimeout)
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
+        services.AddHttpClient("Aneiang.Iam.ServiceAuth", (sp, client) => client.Timeout = sp.GetRequiredService<IOptions<IamGatewayOptions>>().Value.IamTimeout)
+            .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
         services.AddHostedService<IamPolicyBundleRefreshService>();
         services.AddHealthChecks().AddCheck<IamPolicyBundleHealthCheck>("iam-policy-bundle", tags: ["ready"]);
 
@@ -38,11 +45,23 @@ public static class IamGatewayExtensions
                 jwt.Authority = string.IsNullOrWhiteSpace(options.Authority) ? null : options.Authority;
                 jwt.RequireHttpsMetadata = true;
                 jwt.MapInboundClaims = false;
+                jwt.IncludeErrorDetails = false;
+                jwt.Events = new JwtBearerEvents
+                {
+                    OnTokenValidated = context =>
+                    {
+                        var type = context.Principal?.FindFirst("typ")?.Value;
+                        var headerType = context.SecurityToken is Microsoft.IdentityModel.JsonWebTokens.JsonWebToken token ? token.Typ : null;
+                        if ((type != "Bearer" && headerType != "at+jwt") || context.Principal?.HasClaim(c => c.Type == "act") == true)
+                            context.Fail("Unsupported access-token binding.");
+                        return Task.CompletedTask;
+                    }
+                };
                 jwt.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuer = true,
                     ValidIssuer = string.IsNullOrWhiteSpace(options.Issuer) ? null : options.Issuer,
-                    ValidateAudience = false,
+                    ValidateAudience = false, // exact operation audience is checked after matching its immutable policy
                     ValidateLifetime = true,
                     RequireExpirationTime = true,
                     RequireSignedTokens = true,
@@ -50,7 +69,20 @@ public static class IamGatewayExtensions
                     ValidAlgorithms = options.AllowedAlgorithms
                 };
             });
-        services.AddAuthorization();
+        services.AddAuthorization(options => options.AddPolicy("IamManifestExport", policy =>
+        {
+            policy.AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme).RequireAuthenticatedUser();
+            policy.RequireAssertion(context =>
+            {
+                if (context.Resource is not HttpContext http) return false;
+                var settings = http.RequestServices.GetRequiredService<IOptions<IamGatewayOptions>>().Value;
+                return http.Request.IsHttps
+                    && context.User.FindAll("sub").Count() == 1 && settings.ManifestExportSubjects.Contains(context.User.FindFirst("sub")?.Value, StringComparer.Ordinal)
+                    && context.User.FindAll("aud").Any(c => c.Value == settings.ManifestExportAudience)
+                    && settings.ManifestExportRemoteAddresses.Any(v => IPAddress.TryParse(v, out var ip)
+                        && http.Connection.RemoteIpAddress?.MapToIPv6().Equals(ip.MapToIPv6()) == true);
+            });
+        }));
         return services;
     }
 
