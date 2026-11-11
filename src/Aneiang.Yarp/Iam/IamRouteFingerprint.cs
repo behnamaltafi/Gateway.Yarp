@@ -14,6 +14,7 @@ public static class IamRouteFingerprint
         {
             route.RouteId,
             route.ClusterId,
+            route.Order,
             Match = new
             {
                 route.Match.Path,

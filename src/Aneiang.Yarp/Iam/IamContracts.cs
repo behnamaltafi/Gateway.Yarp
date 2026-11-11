@@ -7,11 +7,12 @@ public enum IamAuthMode { Unconfigured, Anonymous, Authenticated, Permission, In
 public enum IamPrincipalKind { User, Service }
 public enum IamRequirementMode { Any, All }
 public enum IamEnforcementMode { GatewayOnly, GatewayAndResource }
+public enum IamScopeKind { Global, System }
 
-public sealed record IamGrant(string Permission, string Scope, DateTimeOffset? ExpiresAt, string Source);
+public sealed record IamGrant(string PermissionCode, IamScopeKind ScopeKind, string? ScopeId, DateTimeOffset? ExpiresAt, string Source);
 
 public sealed record IamEntitlementSnapshot(
-    string SchemaVersion,
+    int SchemaVersion,
     string PrincipalId,
     string Issuer,
     string Subject,
@@ -21,7 +22,8 @@ public sealed record IamEntitlementSnapshot(
     DateTimeOffset ExpiresAt,
     bool IsActive,
     IamPrincipalKind PrincipalKind,
-    ImmutableArray<IamGrant> Grants);
+    ImmutableArray<IamGrant> Grants,
+    string? ClientId = null);
 
 public sealed record IamOperationPolicy(
     string OperationKey,
@@ -38,7 +40,8 @@ public sealed record IamOperationPolicy(
     ImmutableArray<string> RequiredBusinessScopes,
     IamRequirementMode RequirementMode,
     IamEnforcementMode EnforcementMode,
-    long PolicyRevision);
+    long PolicyRevision,
+    bool ResourceScopeRequired = false);
 
 public sealed record IamPolicyBundle(
     string SchemaVersion,
@@ -47,7 +50,11 @@ public sealed record IamPolicyBundle(
     string RouteManifestHash,
     DateTimeOffset PublishedAt,
     DateTimeOffset ValidatedUntil,
-    ImmutableArray<IamOperationPolicy> Policies);
+    ImmutableArray<IamOperationPolicy> Policies,
+    string PolicyContentBase64 = "");
+
+public sealed record IamBundleEnvelope(int SchemaVersion, long Revision, string ContentHash,
+    DateTimeOffset ValidatedUntil, string PolicyContentBase64);
 
 public sealed record IamDecision(bool Allowed, string ReasonCode, int StatusCode)
 {
@@ -63,5 +70,5 @@ public interface IIamPolicyBundleProvider
 
 public interface IIamEntitlementSource
 {
-    Task<IamEntitlementSnapshot> FetchAsync(string issuer, string subject, string applicationId, CancellationToken cancellationToken);
+    Task<IamEntitlementSnapshot> FetchAsync(string issuer, string subject, string applicationId, CancellationToken cancellationToken, string? clientId = null);
 }
