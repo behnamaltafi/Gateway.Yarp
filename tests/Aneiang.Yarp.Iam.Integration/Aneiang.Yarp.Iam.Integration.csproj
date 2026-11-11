@@ -8,5 +8,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Aneiang.Yarp\Aneiang.Yarp.csproj" />
+    <ProjectReference Include="..\..\src\Aneiang.Yarp.Storage.Sqlite\Aneiang.Yarp.Storage.Sqlite.csproj" />
   </ItemGroup>
 </Project>

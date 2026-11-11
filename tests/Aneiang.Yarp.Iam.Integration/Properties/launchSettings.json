@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "Aneiang.Yarp.Iam.Integration": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:4754;http://localhost:4755"
+    }
+  }
+}

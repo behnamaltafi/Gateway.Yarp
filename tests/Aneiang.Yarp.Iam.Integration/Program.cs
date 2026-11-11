@@ -11,15 +11,20 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Yarp.ReverseProxy.Configuration;
+using Aneiang.Yarp.Storage.Sqlite;
+using System.Security.Cryptography;
+using System.Text.Json;
 
 const string issuer = "https://keycloak.test/realms/core";
-const string application = "orders";
+const string application = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const string audience = "orders-api";
 var failures = new List<string>();
 var passed = 0;
 var forwards = 0;
 
 var backendBuilder = WebApplication.CreateBuilder();
+backendBuilder.Configuration.Sources.Clear();
+backendBuilder.Configuration.AddInMemoryCollection();
 backendBuilder.Logging.ClearProviders();
 await using var backend = backendBuilder.Build();
 backend.Urls.Add("http://127.0.0.1:0");
@@ -31,10 +36,16 @@ backend.MapMethods("/{**path}", ["GET", "DELETE"], (HttpContext context) =>
 await backend.StartAsync();
 
 var builder = WebApplication.CreateBuilder();
+builder.Configuration.Sources.Clear();
+builder.Configuration.AddInMemoryCollection();
 builder.Logging.ClearProviders();
 builder.Logging.AddSimpleConsole(options => options.SingleLine = true);
 builder.WebHost.UseUrls("http://127.0.0.1:0");
 builder.Services.AddAneiangYarp(enableRegistration: false);
+var testDatabase = Path.Combine(Path.GetTempPath(), "opencode", "gateway-iam-" + Guid.NewGuid().ToString("N") + ".db");
+Directory.CreateDirectory(Path.GetDirectoryName(testDatabase)!);
+builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["Gateway:Storage:Sqlite:ConnectionString"] = "Data Source=" + testDatabase });
+builder.Services.AddAneiangStorage();
 var source = new FakeEntitlementSource();
 var policies = new FakeBundleProvider();
 builder.Services.AddSingleton<IIamEntitlementSource>(source);
@@ -45,8 +56,9 @@ builder.Services.AddAneiangIamGateway(builder.Configuration, options =>
     options.Issuer = issuer;
     options.Audience = audience;
     options.AllowedAlgorithms = [SecurityAlgorithms.HmacSha256];
-    options.PolicyBundleEndpoint = new Uri("http://127.0.0.1:1/iam/bundle");
-    options.EntitlementEndpoint = new Uri("http://127.0.0.1:1/iam/entitlements");
+    options.PolicyBundleEndpoint = new Uri("https://localhost:1/iam/bundle");
+    options.EntitlementEndpoint = new Uri("https://localhost:1/iam/entitlements");
+    options.InternalApiToken = "component-test-only";
     options.BundleRefreshInterval = TimeSpan.FromHours(1);
 });
 var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("test-only-signing-key-at-least-32-bytes-long"));
@@ -81,12 +93,14 @@ using var client = new HttpClient { BaseAddress = new Uri(app.Urls.Single()) };
 await Check("S18 bundle schema, manifest and SHA-256 validation fail closed", () =>
 {
     var operation = Policy(getRoute, "GET", IamAuthMode.Anonymous);
-    var manifestHash = IamPolicyBundleValidator.ComputeRouteManifestHash([operation]);
-    var candidate = new IamPolicyBundle("1.0", 7, string.Empty, manifestHash, DateTimeOffset.UtcNow.AddMinutes(-1),
-        DateTimeOffset.UtcNow.AddMinutes(5), [operation]);
-    candidate = candidate with { Hash = IamPolicyBundleValidator.ComputeHash(candidate) };
+    var candidate = Bundle(operation);
     Assert(IamPolicyBundleValidator.TryValidate(candidate, DateTimeOffset.UtcNow, out _));
     Assert(!IamPolicyBundleValidator.TryValidate(candidate with { RouteManifestHash = "bad" }, DateTimeOffset.UtcNow, out _));
+    var store = new IamPolicyBundleStore(TimeProvider.System);
+    store.Publish(candidate with { ValidatedUntil = DateTimeOffset.UtcNow.AddMinutes(1) });
+    store.Publish(candidate);
+    Assert(store.Current!.Hash == candidate.Hash && store.Current.Revision == candidate.Revision);
+    Assert(store.Current.ValidatedUntil == candidate.ValidatedUntil);
     return Task.CompletedTask;
 });
 
@@ -136,11 +150,12 @@ await Check("S09/S11 principal kind and business scope cannot borrow grants", ()
     var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim("aud", audience)], "fixture"));
     var scoped = Policy(deleteRoute, "DELETE", IamAuthMode.Permission, ["orders.delete"]) with
     {
-        RequiredBusinessScopes = ["System20"], AllowedPrincipalKinds = [IamPrincipalKind.User]
+        RequiredPermissions = ["orders.delete", "orders.approve"], AllowedPrincipalKinds = [IamPrincipalKind.User],
+        EnforcementMode = IamEnforcementMode.GatewayAndResource, ResourceScopeRequired = true
     };
-    var snapshot = new IamEntitlementSnapshot("1.0", "p1", issuer, "user-1", application, 1,
-        DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddMinutes(5), true, IamPrincipalKind.User,
-        [new IamGrant("orders.delete", "System10", null, "Role")]);
+    var snapshot = new IamEntitlementSnapshot(1, Guid.NewGuid().ToString(), issuer, "user-1", application, 1,
+        DateTimeOffset.UtcNow.AddSeconds(-1), DateTimeOffset.UtcNow.AddSeconds(119), true, IamPrincipalKind.User,
+        [new IamGrant("orders.delete", IamScopeKind.System, "10", null, "Role"), new IamGrant("orders.approve", IamScopeKind.System, "20", null, "Direct")]);
     Assert(!evaluator.Evaluate(scoped, principal, snapshot).Allowed);
     Assert(!evaluator.Evaluate(scoped, principal, snapshot with { PrincipalKind = IamPrincipalKind.Service }).Allowed);
     return Task.CompletedTask;
@@ -158,8 +173,8 @@ await Check("S12/S13 valid L1 hit has zero fetch and 20-way miss is single-fligh
 
 await Check("S14 positive cache expiry is absolute and capped at 120 seconds", async () =>
 {
-    var localSource = new FakeEntitlementSource();
     var manual = new ManualTimeProvider(DateTimeOffset.UtcNow);
+    var localSource = new FakeEntitlementSource(manual);
     using var cache = new IamEntitlementCache(localSource, Options.Create(new IamGatewayOptions
     {
         EntitlementMaxAge = TimeSpan.FromSeconds(120), NegativeCacheMaxAge = TimeSpan.FromSeconds(15),
@@ -207,8 +222,8 @@ if (failures.Count != 0) Environment.ExitCode = 1;
 
 RouteConfig Route(string id, string method) => new()
 {
-    RouteId = id, ClusterId = "backend", AuthorizationPolicy = method == "GET" ? null : "anonymous",
-    Match = new RouteMatch { Path = "/items/{**rest}", Methods = [method] }
+    RouteId = id, ClusterId = "backend", Order = int.MaxValue, AuthorizationPolicy = method == "GET" ? null : "anonymous",
+    Match = new RouteMatch { Path = "/items/{id}", Methods = [method] }
 };
 
 IamOperationPolicy Policy(RouteConfig route, string method, IamAuthMode mode, string[]? permissions = null) => new(
@@ -216,8 +231,23 @@ IamOperationPolicy Policy(RouteConfig route, string method, IamAuthMode mode, st
     [IamPrincipalKind.User, IamPrincipalKind.Service], [], (permissions ?? []).ToImmutableArray(), [], IamRequirementMode.All,
     IamEnforcementMode.GatewayOnly, 1);
 
-IamPolicyBundle Bundle(params IamOperationPolicy[] values) => new(
-    "1.0", 1, new string('0', 64), "fixture", DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddMinutes(5), values.ToImmutableArray());
+IamPolicyBundle Bundle(params IamOperationPolicy[] values)
+{
+    var manifest = IamRouteManifestExporter.Export(provider.GetConfig());
+    var manifestHash = Convert.ToHexString(SHA256.HashData(manifest)).ToLowerInvariant();
+    var content = JsonSerializer.SerializeToUtf8Bytes(new
+    {
+        schemaVersion = 1, revision = 1, publishedAt = DateTimeOffset.UtcNow.AddMinutes(-1), routeManifestHash = manifestHash,
+        routeManifestBase64 = Convert.ToBase64String(manifest), policies = values.Select(p => new
+        {
+            applicationId = p.ApplicationId, applicationCode = "orders", p.BackendServiceCode, p.OperationKey,
+            gatewayRouteId = p.RouteId, p.HttpMethod, gatewayRouteFingerprint = p.RouteFingerprint, p.AuthMode, p.RequiredAudience,
+            p.AllowedPrincipalKinds, p.RequiredOAuthScopes, p.RequiredPermissions, p.RequirementMode, p.EnforcementMode, p.ResourceScopeRequired
+        }).ToArray()
+    }, IamBundleWireProtocol.JsonOptions);
+    return IamBundleWireProtocol.Decode(new(1, 1, Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant(),
+        DateTimeOffset.UtcNow.AddMinutes(5), Convert.ToBase64String(content)), DateTimeOffset.UtcNow);
+}
 
 string Token(string subject, string tokenAudience)
 {
@@ -244,21 +274,23 @@ sealed class FakeBundleProvider : IIamPolicyBundleProvider
 {
     public IamPolicyBundle? Bundle { get; set; }
     public IamPolicyBundle? Current => Bundle;
-    public bool IsReady => Bundle is { ValidatedUntil: var expiry } && expiry > DateTimeOffset.UtcNow;
+    public bool IsReady => IamPolicyBundleValidator.TryValidate(Bundle, DateTimeOffset.UtcNow, out _);
 }
 
-sealed class FakeEntitlementSource : IIamEntitlementSource
+sealed class FakeEntitlementSource(TimeProvider? time = null) : IIamEntitlementSource
 {
     public int Fetches;
     public void Reset() => Fetches = 0;
-    public async Task<IamEntitlementSnapshot> FetchAsync(string actualIssuer, string subject, string actualApplication, CancellationToken cancellationToken)
+    public async Task<IamEntitlementSnapshot> FetchAsync(string actualIssuer, string subject, string actualApplication, CancellationToken cancellationToken, string? clientId = null)
     {
         Interlocked.Increment(ref Fetches);
         await Task.Delay(30, cancellationToken);
         if (subject == "down") throw new HttpRequestException("fixture down");
-        return new("1.0", $"principal-{subject}", actualIssuer, subject, actualApplication, 1, DateTimeOffset.UtcNow.AddMinutes(-1),
-            DateTimeOffset.UtcNow.AddMinutes(5), true, IamPrincipalKind.User,
-            [new IamGrant("orders.delete", "Global", null, "Direct")]);
+        var now = (time ?? TimeProvider.System).GetUtcNow();
+        var id = new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(subject)).AsSpan(0, 16));
+        return new(1, id.ToString(), actualIssuer, subject, actualApplication, 1, now,
+            now.AddSeconds(120), true, IamPrincipalKind.User,
+            [new IamGrant("orders.delete", IamScopeKind.Global, null, null, "Direct")]);
     }
 }
 
