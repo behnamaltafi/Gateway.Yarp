@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Aneiang.Yarp.OpenApi;
+using Aneiang.Yarp.Iam;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Aneiang.Yarp.Dashboard.Infrastructure.Middleware;
 
@@ -60,6 +62,9 @@ public class EndpointRouterMiddleware
         }
 
         var path = context.Request.Path.Value ?? "/";
+        var managementApi = context.RequestServices.GetService<IamManagementAuthorization>() is not null
+            && (context.Request.Path.StartsWithSegments("/api/gateway")
+                || context.Request.Path.StartsWithSegments("/aneiang.yarp.v1.GatewayRegistry"));
 
         // ProxyOnly / DashboardOnly modes
         if (_options.Mode == DeploymentMode.ProxyOnly)
@@ -89,9 +94,9 @@ public class EndpointRouterMiddleware
         {
             "All"       => true,
             "Health"    => IsHealthPath(path),
-            "Admin"     => path.StartsWith("/api/admin", StringComparison.OrdinalIgnoreCase),
+            "Admin"     => path.StartsWith("/api/admin", StringComparison.OrdinalIgnoreCase) || managementApi,
             "Dashboard" => IsDashboardPath(path) || IsControlPlaneApiPath(path),
-            "Proxy"     => !IsDashboardPath(path),
+            "Proxy"     => !IsDashboardPath(path) && !managementApi,
             _           => true
         };
 

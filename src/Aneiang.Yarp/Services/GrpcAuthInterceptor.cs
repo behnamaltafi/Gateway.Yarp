@@ -4,6 +4,8 @@ using Grpc.Core;
 using Grpc.Core.Interceptors;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Aneiang.Yarp.Iam;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Aneiang.Yarp.Services;
 
@@ -30,6 +32,15 @@ internal class GrpcAuthInterceptor : Interceptor
         ServerCallContext context,
         UnaryServerMethod<TRequest, TResponse> continuation)
     {
+        var http = context.GetHttpContext();
+        if (http.RequestServices.GetService<IamManagementAuthorization>() is { } management)
+        {
+            var status = await management.AuthorizeAsync(http, service: true);
+            if (status != 200)
+                throw new RpcException(new Status(status == 401 ? StatusCode.Unauthenticated : StatusCode.PermissionDenied, "Management access denied"));
+            return await continuation(request, context);
+        }
+
         if (_options.Mode == GatewayApiAuthMode.None)
         {
             return await continuation(request, context);

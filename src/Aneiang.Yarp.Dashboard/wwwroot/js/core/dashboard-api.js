@@ -22,6 +22,7 @@
     };
 
     window.DashboardApi.setToken = function(token) {
+        if (window.__dashboard?.sso) return;
         config.token = token;
         if (token) {
             localStorage.setItem('dashboard_token', token);
@@ -31,7 +32,13 @@
     };
 
     window.DashboardApi.getToken = function() {
+        if (window.__dashboard?.sso) return null;
         return config.token || localStorage.getItem('dashboard_token');
+    };
+
+    window.DashboardApi.csrfHeaders = function() {
+        const token = window.__dashboard?.csrfToken;
+        return token ? { 'X-Gateway-CSRF': token } : {};
     };
 
     window.DashboardApi.request = async function(url, options = {}) {
@@ -51,6 +58,8 @@
             'Content-Type': 'application/json',
             ...headers
         };
+        if (!/^(GET|HEAD|OPTIONS)$/i.test(method) && new URL(fullUrl, location.href).origin === location.origin)
+            Object.assign(requestHeaders, this.csrfHeaders());
 
         if (requireAuth) {
             const token = this.getToken();

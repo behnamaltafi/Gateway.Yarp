@@ -265,7 +265,7 @@
         const url = (window.__dashboard?.basePath || '') + '/api/ai/chat';
         const response = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...window.DashboardApi.csrfHeaders() },
             body: JSON.stringify({ sessionId: state.sessionId, message }),
             signal: state.abortController.signal
         });
@@ -610,7 +610,7 @@
         try {
             const resp = await fetch((window.__dashboard?.basePath || '') + '/api/ai/tool/execute', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', ...window.DashboardApi.csrfHeaders() },
                 body: JSON.stringify({ toolName: name, arguments: args })
             });
             if (!resp.ok) return JSON.stringify({ error: `HTTP ${resp.status}` });
@@ -927,7 +927,9 @@
 
     async function deleteSession(sessionId) {
         try {
-            await fetch(`${window.__dashboard?.basePath || ''}/api/ai/sessions/${sessionId}`, { method: 'DELETE' });
+            await fetch(`${window.__dashboard?.basePath || ''}/api/ai/sessions/${sessionId}`, {
+                method: 'DELETE', headers: window.DashboardApi.csrfHeaders()
+            });
             if (state.sessionId === sessionId) newChat();
             loadSessions();
         } catch {}

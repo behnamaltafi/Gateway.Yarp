@@ -539,7 +539,7 @@
                 }
 
                 html += '<div style="min-width:0;flex:1;">';
-                html += '<div style="font-weight:600;font-size:14px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.routeId) : route.routeId) + '">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.displayName || route.routeKey || route.routeId) : (route.displayName || route.routeKey || route.routeId)) + (route.enabled === false ? ' <span style="font-size:10px;font-weight:600;color:#dc2626;background:rgba(239,68,68,0.08);padding:2px 6px;border-radius:4px;border:1px solid rgba(239,68,68,0.2);margin-left:4px;">' + (window.__ && __("route.disabledBadge") || '已禁用') + '</span>' : '') + '</div>';
+                html += '<div style="font-weight:600;font-size:14px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.routeId) : route.routeId) + '">' + (window.DashboardUtils ? DashboardUtils.escapeHtml(route.displayName || route.routeKey || route.routeId) : (route.displayName || route.routeKey || route.routeId)) + (route.enabled === false ? ' <span style="font-size:10px;font-weight:600;color:#dc2626;background:rgba(239,68,68,0.08);padding:2px 6px;border-radius:4px;border:1px solid rgba(239,68,68,0.2);margin-left:4px;">' + (window.__ && __("route.disabledBadge") || 'Disabled') + '</span>' : '') + '</div>';
                 if (route.displayName || route.routeUid || route.routeKey) {
                     html += '<div style="font-size:11px;color:#94a3b8;margin-top:2px;display:flex;gap:6px;flex-wrap:wrap;">';
                     if (route.routeUid) {
@@ -1982,12 +1982,13 @@
                 btnElement.innerHTML = '<i class="bi bi-arrow-clockwise spin"></i>';
             }
             try {
-                const basePath = '/' + (window.__dashboard?.routePrefix || 'apigateway');
-                const token = localStorage.getItem('dashboard_token') || '';
+                const basePath = window.__dashboard?.basePath || '/apigateway';
+                const token = window.DashboardApi.getToken();
                 const resp = await fetch(basePath + '/api/config/routes/' + encodeURIComponent(routeId) + '/enabled', {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
+                        ...window.DashboardApi.csrfHeaders(),
                         ...(token ? { 'Authorization': 'Bearer ' + token } : {})
                     },
                     body: JSON.stringify({ enabled: enable })

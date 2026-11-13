@@ -1,76 +1,84 @@
 @{
-    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Settings" : "系统设置";
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Settings" : "System Settings";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
+    var keycloakSso = Context.RequestServices.GetService(typeof(Aneiang.Yarp.Iam.IamManagementAuthorization)) is not null;
 }
 
 <div id="settings-app">
     <div class="page-help-bar" id="settings-help-bar">
         <i class="bi bi-info-circle"></i>
-        <span class="help-text" data-i18n="page.help.settings">系统设置包含账号安全、日志采集与数据持久化策略，以及系统运行信息。</span>
+        <span class="help-text" data-i18n="page.help.settings">System settings include account security, log collection and data persistence policies, plus system runtime information.</span>
         <button class="help-close" onclick="document.getElementById('settings-help-bar').classList.add('collapsed')">&times;</button>
     </div>
 
     <ul class="nav nav-pills settings-tabs" id="settings-tab-nav" role="tablist">
         <li class="nav-item" role="presentation">
             <button class="nav-link active" id="tab-security" data-bs-toggle="tab" data-bs-target="#pane-security" type="button" role="tab" aria-controls="pane-security" aria-selected="true">
-                <i class="bi bi-shield-lock"></i><span data-i18n="settings.tab.security">账号安全</span>
+                <i class="bi bi-shield-lock"></i><span data-i18n="settings.tab.security">Account Security</span>
             </button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="tab-logging" data-bs-toggle="tab" data-bs-target="#pane-logging" type="button" role="tab" aria-controls="pane-logging" aria-selected="false">
-                <i class="bi bi-journal-text"></i><span data-i18n="settings.tab.logging">日志与持久化</span>
+                <i class="bi bi-journal-text"></i><span data-i18n="settings.tab.logging">Logging &amp; Persistence</span>
             </button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="tab-system" data-bs-toggle="tab" data-bs-target="#pane-system" type="button" role="tab" aria-controls="pane-system" aria-selected="false">
-                <i class="bi bi-info-circle"></i><span data-i18n="settings.tab.system">系统信息</span>
+                <i class="bi bi-info-circle"></i><span data-i18n="settings.tab.system">System Info</span>
             </button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="tab-config" data-bs-toggle="tab" data-bs-target="#pane-config" type="button" role="tab" aria-controls="pane-config" aria-selected="false">
-                <i class="bi bi-file-earmark-arrow-up-down"></i><span data-i18n="settings.tab.config">配置导入导出</span>
+                <i class="bi bi-file-earmark-arrow-up-down"></i><span data-i18n="settings.tab.config">Import / Export</span>
             </button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="tab-database" data-bs-toggle="tab" data-bs-target="#pane-database" type="button" role="tab" aria-controls="pane-database" aria-selected="false">
-                <i class="bi bi-database"></i><span data-i18n="settings.tab.database">数据库</span>
+                <i class="bi bi-database"></i><span data-i18n="settings.tab.database">Database</span>
             </button>
         </li>
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="tab-ai" data-bs-toggle="tab" data-bs-target="#pane-ai" type="button" role="tab" aria-controls="pane-ai" aria-selected="false">
-                <i class="bi bi-robot"></i><span data-i18n="settings.tab.ai">AI 助手</span>
+                <i class="bi bi-robot"></i><span data-i18n="settings.tab.ai">AI Assistant</span>
             </button>
         </li>
     </ul>
 
     <div class="tab-content settings-tab-content" id="settings-tab-content">
-        <!-- TAB: 账号安全 (2FA) -->
+
         <div class="tab-pane fade show active" id="pane-security" role="tabpanel" aria-labelledby="tab-security">
             <div class="settings-panel">
                 <div class="settings-panel-header">
                     <div class="settings-panel-title">
                         <span class="settings-panel-icon settings-panel-icon--amber"><i class="bi bi-shield-lock"></i></span>
-                        <span data-i18n="twofa.title">双因素认证 (2FA)</span>
+                        <span data-i18n="twofa.title">Two-Factor Authentication (2FA)</span>
                     </div>
-                    <span id="twofa-status-badge" class="settings-status-badge" data-i18n="common.loading">加载中</span>
+                    <span id="twofa-status-badge" class="settings-status-badge" data-i18n="common.loading">Loading...</span>
                 </div>
+                @if (keycloakSso)
+                {
+                    <div class="settings-panel-body">Manage your password and multi-factor authentication in Keycloak.</div>
+                }
+                else
+                {
                 <div id="twofa-content" class="settings-panel-body">
                     <div class="loading-state">
                         <div class="loading-spinner"></div>
-                        <div class="loading-text" data-i18n="common.loading">加载中...</div>
+                        <div class="loading-text" data-i18n="common.loading">Loading...</div>
                     </div>
                 </div>
+                }
             </div>
         </div>
 
-        <!-- TAB: 日志与数据持久化 -->
+
         <div class="tab-pane fade" id="pane-logging" role="tabpanel" aria-labelledby="tab-logging">
-            <!-- 持久化与保留策略 -->
+
             <div class="settings-panel">
                 <div class="settings-panel-header">
                     <div class="settings-panel-title">
                         <span class="settings-panel-icon settings-panel-icon--blue"><i class="bi bi-database-check"></i></span>
-                        <span data-i18n="settings.logging.group.persistence">持久化与保留策略</span>
+                        <span data-i18n="settings.logging.group.persistence">Persistence &amp; Retention</span>
                     </div>
                 </div>
                 <div class="settings-panel-body">
@@ -78,30 +86,30 @@
                         <div class="settings-field">
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" id="ls-persistence">
-                                <label class="form-check-label" for="ls-persistence" data-i18n="settings.logging.persistenceEnabled">日志持久化</label>
+                                <label class="form-check-label" for="ls-persistence" data-i18n="settings.logging.persistenceEnabled">Log Persistence</label>
                             </div>
-                            <div class="settings-field-desc" data-i18n="settings.logging.persistenceEnabled.desc">关闭后日志仅在内存中保留，不写入数据库。</div>
+                            <div class="settings-field-desc" data-i18n="settings.logging.persistenceEnabled.desc">When disabled, logs are kept in memory only and not written to the database.</div>
                         </div>
                         <div class="settings-field">
-                            <label class="form-label" for="ls-meta-retention" data-i18n="settings.logging.metaRetentionDays">元数据保留天数</label>
+                            <label class="form-label" for="ls-meta-retention" data-i18n="settings.logging.metaRetentionDays">Metadata retention (days)</label>
                             <input type="number" class="form-control" id="ls-meta-retention" min="1" max="365">
-                            <div class="settings-field-hint">1 - 365 天</div>
+                            <div class="settings-field-hint">1–365 days</div>
                         </div>
                         <div class="settings-field">
-                            <label class="form-label" for="ls-body-retention" data-i18n="settings.logging.bodyRetentionDays">大字段保留天数</label>
+                            <label class="form-label" for="ls-body-retention" data-i18n="settings.logging.bodyRetentionDays">Large-field retention (days)</label>
                             <input type="number" class="form-control" id="ls-body-retention" min="1" max="365">
-                            <div class="settings-field-hint">1 - 365 天</div>
+                            <div class="settings-field-hint">1–365 days</div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- 请求/响应体捕获 -->
+
             <div class="settings-panel">
                 <div class="settings-panel-header">
                     <div class="settings-panel-title">
                         <span class="settings-panel-icon settings-panel-icon--green"><i class="bi bi-file-earmark-text"></i></span>
-                        <span data-i18n="settings.logging.group.bodyCapture">请求/响应体捕获</span>
+                        <span data-i18n="settings.logging.group.bodyCapture">Request/Response Body Capture</span>
                     </div>
                 </div>
                 <div class="settings-panel-body">
@@ -109,33 +117,33 @@
                         <div class="settings-field">
                             <div class="form-check form-switch mb-2">
                                 <input class="form-check-input" type="checkbox" id="ls-req-body">
-                                <label class="form-check-label" for="ls-req-body" data-i18n="settings.logging.requestBodyCapture">请求体捕获</label>
+                                <label class="form-check-label" for="ls-req-body" data-i18n="settings.logging.requestBodyCapture">Request body capture</label>
                             </div>
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" id="ls-resp-body">
-                                <label class="form-check-label" for="ls-resp-body" data-i18n="settings.logging.responseBodyCapture">响应体捕获</label>
+                                <label class="form-check-label" for="ls-resp-body" data-i18n="settings.logging.responseBodyCapture">Response body capture</label>
                             </div>
                         </div>
                         <div class="settings-field">
-                            <label class="form-label" for="ls-max-body" data-i18n="settings.logging.maxBodyLength">Body 最大长度</label>
+                            <label class="form-label" for="ls-max-body" data-i18n="settings.logging.maxBodyLength">Max body length (bytes)</label>
                             <input type="number" class="form-control" id="ls-max-body" min="1024" step="1024">
-                            <div class="settings-field-hint">字节</div>
+                            <div class="settings-field-hint">bytes</div>
                         </div>
                         <div class="settings-field">
-                            <label class="form-label" for="ls-buffer" data-i18n="settings.logging.maxBodyBufferBytes">Body 缓冲区</label>
+                            <label class="form-label" for="ls-buffer" data-i18n="settings.logging.maxBodyBufferBytes">Body buffer (bytes)</label>
                             <input type="number" class="form-control" id="ls-buffer" min="1024" step="1024">
-                            <div class="settings-field-hint">字节</div>
+                            <div class="settings-field-hint">bytes</div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- 采样与过滤 -->
+
             <div class="settings-panel">
                 <div class="settings-panel-header">
                     <div class="settings-panel-title">
                         <span class="settings-panel-icon settings-panel-icon--amber"><i class="bi bi-funnel"></i></span>
-                        <span data-i18n="settings.logging.group.sampling">采样与过滤</span>
+                        <span data-i18n="settings.logging.group.sampling">Sampling &amp; Filtering</span>
                     </div>
                 </div>
                 <div class="settings-panel-body">
@@ -143,22 +151,22 @@
                         <div class="settings-field">
                             <div class="form-check form-switch mb-2">
                                 <input class="form-check-input" type="checkbox" id="ls-sampling">
-                                <label class="form-check-label" for="ls-sampling" data-i18n="settings.logging.samplingEnabled">启用采样</label>
+                                <label class="form-check-label" for="ls-sampling" data-i18n="settings.logging.samplingEnabled">Enable sampling</label>
                             </div>
-                            <div class="settings-field-desc" data-i18n="settings.logging.samplingEnabled.desc">仅按比例记录日志，降低存储压力。</div>
-                            <label class="form-label mt-2" for="ls-sampling-rate" data-i18n="settings.logging.samplingRate">采样率</label>
+                            <div class="settings-field-desc" data-i18n="settings.logging.samplingEnabled.desc">Logs only a proportion of requests to reduce storage.</div>
+                            <label class="form-label mt-2" for="ls-sampling-rate" data-i18n="settings.logging.samplingRate">Sampling rate (0.01 - 1.0)</label>
                             <input type="number" class="form-control" id="ls-sampling-rate" min="0.01" max="1" step="0.01">
                             <div class="settings-field-hint">0.01 - 1.0</div>
                         </div>
                         <div class="settings-field">
                             <div class="form-check form-switch mb-2">
                                 <input class="form-check-input" type="checkbox" id="ls-errors-only">
-                                <label class="form-check-label" for="ls-errors-only" data-i18n="settings.logging.errorsOnly">仅记录错误</label>
+                                <label class="form-check-label" for="ls-errors-only" data-i18n="settings.logging.errorsOnly">Errors only</label>
                             </div>
-                            <div class="settings-field-desc" data-i18n="settings.logging.errorsOnly.desc">仅记录状态码 ≥ 400 的请求。</div>
+                            <div class="settings-field-desc" data-i18n="settings.logging.errorsOnly.desc">Logs only requests with status code ≥ 400.</div>
                         </div>
                         <div class="settings-field">
-                            <label class="form-label" for="ls-min-level" data-i18n="settings.logging.minLogLevel">最小日志级别</label>
+                            <label class="form-label" for="ls-min-level" data-i18n="settings.logging.minLogLevel">Minimum log level</label>
                             <select class="form-select" id="ls-min-level">
                                 <option value="Trace" data-i18n="settings.logging.level.trace">Trace</option>
                                 <option value="Information" data-i18n="settings.logging.level.information">Information</option>
@@ -171,96 +179,96 @@
                 </div>
             </div>
 
-            <!-- 操作按钮 -->
+
             <div class="settings-bottom-bar">
                 <div class="settings-bottom-bar-left">
-                    <span id="settings-customized-badge" class="settings-status-badge settings-status-badge--warning d-none" data-i18n="settings.logging.customizedBadge">已自定义</span>
+                    <span id="settings-customized-badge" class="settings-status-badge settings-status-badge--warning d-none" data-i18n="settings.logging.customizedBadge">Customized</span>
                 </div>
                 <div class="settings-bottom-bar-right">
                     <button class="btn btn-outline-secondary btn-sm" id="settings-reset-btn" onclick="SettingsModule.reset()">
-                        <i class="bi bi-arrow-counterclockwise me-1"></i><span data-i18n="settings.logging.reset">重置为默认</span>
+                        <i class="bi bi-arrow-counterclockwise me-1"></i><span data-i18n="settings.logging.reset">Reset to Defaults</span>
                     </button>
                     <button class="btn btn-primary btn-sm" id="settings-save-btn" onclick="SettingsModule.save()">
-                        <i class="bi bi-check-lg me-1"></i><span data-i18n="settings.logging.save">保存日志设置</span>
+                        <i class="bi bi-check-lg me-1"></i><span data-i18n="settings.logging.save">Save Log Settings</span>
                     </button>
                 </div>
             </div>
 
-            <!-- 需重启配置 -->
+
             <div class="settings-panel settings-panel--muted">
                 <div class="settings-panel-header">
                     <div class="settings-panel-title">
                         <span class="settings-panel-icon settings-panel-icon--gray"><i class="bi bi-arrow-repeat"></i></span>
-                        <span data-i18n="settings.logging.restartRequired">需重启生效的配置</span>
-                        <span class="settings-read-only-badge" data-i18n="settings.logging.restartRequired.badge">只读 · appsettings.json</span>
+                        <span data-i18n="settings.logging.restartRequired">Restart Required</span>
+                        <span class="settings-read-only-badge" data-i18n="settings.logging.restartRequired.badge">Read-only · appsettings.json</span>
                     </div>
                 </div>
                 <div class="settings-panel-body">
-                    <div class="settings-field-desc mb-3" data-i18n="settings.logging.restartRequired.desc">以下配置来自 appsettings.json，修改后需重启服务才能生效。</div>
+                    <div class="settings-field-desc mb-3" data-i18n="settings.logging.restartRequired.desc">These options come from appsettings.json and require a restart to take effect.</div>
                     <div id="settings-restart-required" class="restart-required-grid"></div>
                 </div>
             </div>
         </div>
 
-        <!-- TAB: 系统信息 -->
+
         <div class="tab-pane fade" id="pane-system" role="tabpanel" aria-labelledby="tab-system">
             <div class="settings-panel">
                 <div class="settings-panel-body" id="settings-system-content">
                     <div class="loading-state">
                         <div class="loading-spinner"></div>
-                        <div class="loading-text" data-i18n="pluginPage.loading">加载中...</div>
+                        <div class="loading-text" data-i18n="pluginPage.loading">Loading...</div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- TAB: 配置导入导出 -->
+
         <div class="tab-pane fade" id="pane-config" role="tabpanel" aria-labelledby="tab-config">
-            <!-- 导出配置 -->
+
             <div class="settings-panel">
                 <div class="settings-panel-header">
                     <div class="settings-panel-title">
                         <span class="settings-panel-icon settings-panel-icon--green"><i class="bi bi-download"></i></span>
-                        <span data-i18n="config.export">导出配置</span>
+                        <span data-i18n="config.export">Export Config</span>
                     </div>
                 </div>
                 <div class="settings-panel-body">
-                    <div class="settings-field-desc mb-3" data-i18n="config.exportDesc">将当前网关配置导出为 JSON 文件</div>
+                    <div class="settings-field-desc mb-3" data-i18n="config.exportDesc">Export current gateway config as a JSON file</div>
                     <div class="mt-3">
                         <button class="btn btn-outline-success btn-sm" id="config-export-btn" onclick="SettingsModule.exportConfig()">
-                            <i class="bi bi-download me-1"></i><span data-i18n="config.exportBtn">导出</span>
+                            <i class="bi bi-download me-1"></i><span data-i18n="config.exportBtn">Export</span>
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- 导入配置 -->
+
             <div class="settings-panel">
                 <div class="settings-panel-header">
                     <div class="settings-panel-title">
                         <span class="settings-panel-icon settings-panel-icon--amber"><i class="bi bi-upload"></i></span>
-                        <span data-i18n="config.import">导入配置</span>
+                        <span data-i18n="config.import">Import Config</span>
                     </div>
                 </div>
                 <div class="settings-panel-body">
-                    <div class="settings-field-desc mb-3" data-i18n="config.importDesc">从 JSON 文件导入网关配置</div>
+                    <div class="settings-field-desc mb-3" data-i18n="config.importDesc">Import gateway config from a JSON file</div>
 
-                    <!-- 拖拽上传区域 -->
+
                     <div id="config-import-dropzone" class="config-import-dropzone">
                         <input type="file" id="config-import-file" accept=".json,application/json" style="display:none;">
                         <div class="config-import-dropzone-content">
                             <i class="bi bi-cloud-arrow-up"></i>
-                            <span data-i18n="config.dropFile">拖拽文件到这里或点击选择</span>
-                            <span class="text-muted small" data-i18n="config.selectJsonFile">请选择JSON文件</span>
+                            <span data-i18n="config.dropFile">Drop file here or click to select</span>
+                            <span class="text-muted small" data-i18n="config.selectJsonFile">Please select a JSON file</span>
                         </div>
                     </div>
 
-                    <!-- 导入清单预览 -->
+
                     <div id="config-import-manifest" class="config-import-manifest d-none">
                         <div class="config-import-manifest-header">
                             <span class="config-import-manifest-title">
                                 <i class="bi bi-clipboard-check"></i>
-                                <span data-i18n="config.importManifest">导入清单</span>
+                                <span data-i18n="config.importManifest">Import Manifest</span>
                             </span>
                             <span id="config-import-summary" class="config-import-summary"></span>
                         </div>
@@ -268,7 +276,7 @@
                             <div id="config-manifest-routes" class="config-manifest-section">
                                 <div class="config-manifest-section-title">
                                     <i class="bi bi-signpost-2"></i>
-                                    <span data-i18n="config.importManifestRoutes">路由清单</span>
+                                    <span data-i18n="config.importManifestRoutes">Route Manifest</span>
                                     <span id="config-manifest-routes-count" class="badge bg-primary"></span>
                                 </div>
                                 <div id="config-manifest-routes-list" class="config-manifest-list"></div>
@@ -276,19 +284,19 @@
                             <div id="config-manifest-clusters" class="config-manifest-section">
                                 <div class="config-manifest-section-title">
                                     <i class="bi bi-diagram-3"></i>
-                                    <span data-i18n="config.importManifestClusters">集群清单</span>
+                                    <span data-i18n="config.importManifestClusters">Cluster Manifest</span>
                                     <span id="config-manifest-clusters-count" class="badge bg-info"></span>
                                 </div>
                                 <div id="config-manifest-clusters-list" class="config-manifest-list"></div>
                             </div>
                         </div>
-                        <div class="config-import-manifest-desc" data-i18n="config.importManifestDesc">以上是将要导入的配置清单，请确认后继续</div>
+                        <div class="config-import-manifest-desc" data-i18n="config.importManifestDesc">Review the configuration items above before proceeding</div>
                         <div class="config-import-manifest-actions">
                             <button class="btn btn-outline-secondary btn-sm" id="config-import-back" onclick="SettingsModule.resetImportFile()">
-                                <i class="bi bi-arrow-left me-1"></i><span data-i18n="config.importManifestBack">返回重选</span>
+                                <i class="bi bi-arrow-left me-1"></i><span data-i18n="config.importManifestBack">Back</span>
                             </button>
                             <button class="btn btn-primary btn-sm" id="config-import-confirm" onclick="SettingsModule.confirmImportConfig()">
-                                <i class="bi bi-check-lg me-1"></i><span data-i18n="config.importManifestContinue">确认导入</span>
+                                <i class="bi bi-check-lg me-1"></i><span data-i18n="config.importManifestContinue">Confirm Import</span>
                             </button>
                         </div>
                     </div>
@@ -296,139 +304,139 @@
             </div>
         </div>
 
-        <!-- TAB: 数据库 -->
+
         <div class="tab-pane fade" id="pane-database" role="tabpanel" aria-labelledby="tab-database">
-            <!-- 数据库信息 -->
+
             <div class="settings-panel settings-panel--muted">
                 <div class="settings-panel-header">
                     <div class="settings-panel-title">
                         <span class="settings-panel-icon settings-panel-icon--gray"><i class="bi bi-info-circle"></i></span>
-                        <span data-i18n="settings.db.info">数据库信息</span>
+                        <span data-i18n="settings.db.info">Database Info</span>
                     </div>
                 </div>
                 <div class="settings-panel-body">
                     <div class="db-info-grid">
                         <div class="db-info-item">
-                            <span class="db-info-label" data-i18n="settings.db.fileName">文件名</span>
+                            <span class="db-info-label" data-i18n="settings.db.fileName">File Name</span>
                             <span class="db-info-value" id="db-info-name">—</span>
                         </div>
                         <div class="db-info-item">
-                            <span class="db-info-label" data-i18n="settings.db.fileSize">文件大小</span>
+                            <span class="db-info-label" data-i18n="settings.db.fileSize">File Size</span>
                             <span class="db-info-value" id="db-info-size">—</span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- 下载 vs 备份 并排 -->
+
             <div class="db-actions-grid">
-                <!-- 数据库下载 -->
+
                 <div class="settings-panel">
                     <div class="settings-panel-header">
                         <div class="settings-panel-title">
                             <span class="settings-panel-icon settings-panel-icon--cyan"><i class="bi bi-download"></i></span>
-                            <span data-i18n="settings.db.download">数据库下载</span>
+                            <span data-i18n="settings.db.download">Database Download</span>
                         </div>
                     </div>
                     <div class="settings-panel-body">
-                        <div class="settings-field-desc mb-2" data-i18n="settings.db.downloadDesc">直接复制当前数据库文件到本地，速度快但可能不包含 WAL 未提交数据</div>
+                        <div class="settings-field-desc mb-2" data-i18n="settings.db.downloadDesc">Directly copies the current database file, fast but may not include uncommitted WAL data</div>
                         <div class="db-feature-list">
                             <div class="db-feature-item">
                                 <i class="bi bi-check2 text-success"></i>
-                                <span data-i18n="settings.db.feat.fast">速度快，直接文件拷贝</span>
+                                <span data-i18n="settings.db.feat.fast">Fast, direct file copy</span>
                             </div>
                             <div class="db-feature-item">
                                 <i class="bi bi-x text-danger"></i>
-                                <span data-i18n="settings.db.feat.maybeInconsistent">可能不包含 WAL 日志数据</span>
+                                <span data-i18n="settings.db.feat.maybeInconsistent">May not include WAL data</span>
                             </div>
                             <div class="db-feature-item">
                                 <i class="bi bi-x text-danger"></i>
-                                <span data-i18n="settings.db.feat.noTimestamp">文件名不含时间戳</span>
+                                <span data-i18n="settings.db.feat.noTimestamp">Filename has no timestamp</span>
                             </div>
                         </div>
                         <div class="mt-3">
                             <button class="btn btn-outline-secondary btn-sm" onclick="SettingsModule.downloadDatabase()">
-                                <i class="bi bi-download me-1"></i><span data-i18n="settings.db.downloadBtn">下载数据库</span>
+                                <i class="bi bi-download me-1"></i><span data-i18n="settings.db.downloadBtn">Download Database</span>
                             </button>
                         </div>
                     </div>
                 </div>
 
-                <!-- 数据库备份 -->
+
                 <div class="settings-panel">
                     <div class="settings-panel-header">
                         <div class="settings-panel-title">
                             <span class="settings-panel-icon settings-panel-icon--green"><i class="bi bi-shield-check"></i></span>
-                            <span data-i18n="settings.db.backup">数据库备份</span>
+                            <span data-i18n="settings.db.backup">Database Backup</span>
                         </div>
                     </div>
                     <div class="settings-panel-body">
-                        <div class="settings-field-desc mb-2" data-i18n="settings.db.backupDesc">使用 VACUUM INTO 创建事务一致性快照，WAL 日志已合并，适合长期存档</div>
+                        <div class="settings-field-desc mb-2" data-i18n="settings.db.backupDesc">Creates a transactionally consistent snapshot using VACUUM INTO, WAL merged, ideal for long-term archiving</div>
                         <div class="db-feature-list">
                             <div class="db-feature-item">
                                 <i class="bi bi-check2 text-success"></i>
-                                <span data-i18n="settings.db.feat.consistent">事务一致性快照</span>
+                                <span data-i18n="settings.db.feat.consistent">Transactionally consistent snapshot</span>
                             </div>
                             <div class="db-feature-item">
                                 <i class="bi bi-check2 text-success"></i>
-                                <span data-i18n="settings.db.feat.walMerged">WAL 日志已合并到单文件</span>
+                                <span data-i18n="settings.db.feat.walMerged">WAL logs merged into single file</span>
                             </div>
                             <div class="db-feature-item">
                                 <i class="bi bi-check2 text-success"></i>
-                                <span data-i18n="settings.db.feat.timestamp">文件名含时间戳，便于版本管理</span>
+                                <span data-i18n="settings.db.feat.timestamp">Filename includes timestamp for versioning</span>
                             </div>
                         </div>
                         <div class="mt-3">
                             <button class="btn btn-outline-primary btn-sm" id="config-backup-btn" onclick="SettingsModule.backupDatabase()">
-                                <i class="bi bi-shield-check me-1"></i><span data-i18n="settings.db.backupBtn">备份数据库</span>
+                                <i class="bi bi-shield-check me-1"></i><span data-i18n="settings.db.backupBtn">Backup Database</span>
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- 对比表 -->
+
             <div class="settings-panel settings-panel--muted">
                 <div class="settings-panel-header">
                     <div class="settings-panel-title">
                         <span class="settings-panel-icon settings-panel-icon--gray"><i class="bi bi-table"></i></span>
-                        <span data-i18n="settings.db.comparison">下载 vs 备份对比</span>
+                        <span data-i18n="settings.db.comparison">Download vs Backup Comparison</span>
                     </div>
                 </div>
                 <div class="settings-panel-body p-0">
                     <table class="table table-sm mb-0 db-comparison-table">
                         <thead>
                             <tr>
-                                <th data-i18n="settings.db.comp.feature">特性</th>
-                                <th data-i18n="settings.db.download">数据库下载</th>
-                                <th data-i18n="settings.db.backup">数据库备份</th>
+                                <th data-i18n="settings.db.comp.feature">Feature</th>
+                                <th data-i18n="settings.db.download">Database Download</th>
+                                <th data-i18n="settings.db.backup">Database Backup</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
-                                <td data-i18n="settings.db.comp.consistency">数据一致性</td>
-                                <td><i class="bi bi-dash text-warning"></i> <span data-i18n="settings.db.comp.maybe">取决于 WAL 状态</span></td>
-                                <td><i class="bi bi-check2 text-success"></i> <span data-i18n="settings.db.comp.guaranteed">事务保证</span></td>
+                                <td data-i18n="settings.db.comp.consistency">Data Consistency</td>
+                                <td><i class="bi bi-dash text-warning"></i> <span data-i18n="settings.db.comp.maybe">Depends on WAL state</span></td>
+                                <td><i class="bi bi-check2 text-success"></i> <span data-i18n="settings.db.comp.guaranteed">Transaction guaranteed</span></td>
                             </tr>
                             <tr>
-                                <td data-i18n="settings.db.comp.wal">WAL 日志</td>
-                                <td><i class="bi bi-x text-danger"></i> <span data-i18n="settings.db.comp.notIncluded">不含</span></td>
-                                <td><i class="bi bi-check2 text-success"></i> <span data-i18n="settings.db.comp.merged">已合并</span></td>
+                                <td data-i18n="settings.db.comp.wal">WAL Logs</td>
+                                <td><i class="bi bi-x text-danger"></i> <span data-i18n="settings.db.comp.notIncluded">Not included</span></td>
+                                <td><i class="bi bi-check2 text-success"></i> <span data-i18n="settings.db.comp.merged">Merged</span></td>
                             </tr>
                             <tr>
-                                <td data-i18n="settings.db.comp.speed">速度</td>
-                                <td><i class="bi bi-check2 text-success"></i> <span data-i18n="settings.db.comp.fast">快</span></td>
-                                <td><i class="bi bi-clock text-warning"></i> <span data-i18n="settings.db.comp.slower">稍慢</span></td>
+                                <td data-i18n="settings.db.comp.speed">Speed</td>
+                                <td><i class="bi bi-check2 text-success"></i> <span data-i18n="settings.db.comp.fast">Fast</span></td>
+                                <td><i class="bi bi-clock text-warning"></i> <span data-i18n="settings.db.comp.slower">Slightly slower</span></td>
                             </tr>
                             <tr>
-                                <td data-i18n="settings.db.comp.filename">文件名</td>
+                                <td data-i18n="settings.db.comp.filename">Filename</td>
                                 <td><code>gateway-store.db</code></td>
                                 <td><code>gateway-store-backup-{timestamp}.db</code></td>
                             </tr>
                             <tr>
-                                <td data-i18n="settings.db.comp.scenario">适用场景</td>
-                                <td data-i18n="settings.db.comp.quickInspect">快速查看数据库内容</td>
-                                <td data-i18n="settings.db.comp.archiveRecovery">长期存档、灾难恢复</td>
+                                <td data-i18n="settings.db.comp.scenario">Use Case</td>
+                                <td data-i18n="settings.db.comp.quickInspect">Quick database inspection</td>
+                                <td data-i18n="settings.db.comp.archiveRecovery">Long-term archiving, disaster recovery</td>
                             </tr>
                         </tbody>
                     </table>
@@ -436,34 +444,34 @@
             </div>
         </div>
 
-        <!-- TAB: AI 助手 -->
+
         <div class="tab-pane fade" id="pane-ai" role="tabpanel" aria-labelledby="tab-ai">
-            <!-- 状态总览 -->
+
             <div class="settings-panel">
                 <div class="settings-panel-header">
                     <div class="settings-panel-title">
                         <span class="settings-panel-icon settings-panel-icon--indigo"><i class="bi bi-robot"></i></span>
-                        <span data-i18n="ai.title">AI 助手配置</span>
+                        <span data-i18n="ai.title">AI Assistant Configuration</span>
                     </div>
-                    <span id="ai-status-badge" class="settings-status-badge" data-i18n="ai.statusDisabled">已禁用</span>
+                    <span id="ai-status-badge" class="settings-status-badge" data-i18n="ai.statusDisabled">Disabled</span>
                 </div>
                 <div class="settings-panel-body">
                     <div class="settings-field">
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" id="ai-enabled">
-                            <label class="form-check-label" for="ai-enabled" data-i18n="ai.enabled">启用 AI 助手</label>
+                            <label class="form-check-label" for="ai-enabled" data-i18n="ai.enabled">Enable AI Assistant</label>
                         </div>
-                        <div class="settings-field-desc" data-i18n="ai.enabledDesc">开启后 Dashboard 将显示 AI 聊天按钮</div>
+                        <div class="settings-field-desc" data-i18n="ai.enabledDesc">When enabled, Dashboard will show the AI chat button</div>
                     </div>
                 </div>
             </div>
 
-            <!-- 服务商选择 -->
+
             <div class="settings-panel">
                 <div class="settings-panel-header">
                     <div class="settings-panel-title">
                         <span class="settings-panel-icon settings-panel-icon--blue"><i class="bi bi-cloud"></i></span>
-                        <span data-i18n="ai.provider">AI 服务商</span>
+                        <span data-i18n="ai.provider">AI Provider</span>
                     </div>
                 </div>
                 <div class="settings-panel-body">
@@ -471,7 +479,7 @@
                         <div class="ai-provider-card ai-provider-card--deepseek" data-provider="deepseek" data-base="https://api.deepseek.com/v1" data-model="deepseek-v4-flash">
                             <div class="ai-provider-name">DeepSeek</div>
                             <div class="ai-provider-model">V4-Flash</div>
-                            <div class="ai-provider-tag ai-provider-tag--green">推荐</div>
+                            <div class="ai-provider-tag ai-provider-tag--green">Recommended</div>
                         </div>
                         <div class="ai-provider-card ai-provider-card--openai" data-provider="openai" data-base="https://api.openai.com/v1" data-model="gpt-5.6-luna">
                             <div class="ai-provider-name">OpenAI</div>
@@ -491,28 +499,28 @@
                             <div class="ai-provider-tag ai-provider-tag--amber">Agentic</div>
                         </div>
                         <div class="ai-provider-card ai-provider-card--glm" data-provider="glm" data-base="https://open.bigmodel.cn/api/paas/v4" data-model="glm-5.2">
-                            <div class="ai-provider-name">GLM 智谱</div>
+                            <div class="ai-provider-name">Zhipu GLM</div>
                             <div class="ai-provider-model">GLM-5.2</div>
                         </div>
                         <div class="ai-provider-card ai-provider-card--qwen" data-provider="qwen" data-base="https://dashscope.aliyuncs.com/compatible-mode/v1" data-model="qwen3.8-max">
-                            <div class="ai-provider-name">通义千问</div>
+                            <div class="ai-provider-name">Qwen</div>
                             <div class="ai-provider-model">Qwen 3.8 Max</div>
                         </div>
                         <div class="ai-provider-card ai-provider-card--custom" data-provider="custom" data-base="" data-model="">
-                            <div class="ai-provider-name" data-i18n="ai.custom">自定义</div>
-                            <div class="ai-provider-model">OpenAI 兼容</div>
+                            <div class="ai-provider-name" data-i18n="ai.custom">Custom</div>
+                            <div class="ai-provider-model">OpenAI compatible</div>
                         </div>
                     </div>
                     <input type="hidden" id="ai-provider" value="deepseek">
                 </div>
             </div>
 
-            <!-- 连接配置 -->
+
             <div class="settings-panel">
                 <div class="settings-panel-header">
                     <div class="settings-panel-title">
                         <span class="settings-panel-icon settings-panel-icon--green"><i class="bi bi-key"></i></span>
-                        <span data-i18n="ai.connection">连接配置</span>
+                        <span data-i18n="ai.connection">Connection</span>
                     </div>
                 </div>
                 <div class="settings-panel-body">
@@ -525,34 +533,34 @@
                                     <i class="bi bi-eye"></i>
                                 </button>
                             </div>
-                            <div class="settings-field-hint" data-i18n="ai.apiKeyHint">密钥仅在本地使用，不会上传到第三方</div>
+                            <div class="settings-field-hint" data-i18n="ai.apiKeyHint">The key is used locally only and is never sent to third parties</div>
                         </div>
                         <div class="settings-field">
                             <label class="form-label" for="ai-base-url" data-i18n="ai.baseUrl">API Base URL</label>
                             <input type="text" class="form-control" id="ai-base-url" placeholder="https://api.deepseek.com/v1">
-                            <div class="settings-field-hint" data-i18n="ai.baseUrlHint">可修改为 API 代理/镜像地址，将通过安全验证</div>
+                            <div class="settings-field-hint" data-i18n="ai.baseUrlHint">Can be changed to a proxy / mirror address; will be validated for security.</div>
                         </div>
                         <div class="settings-field">
-                            <label class="form-label" for="ai-chat-model" data-i18n="ai.chatModel">对话模型</label>
+                            <label class="form-label" for="ai-chat-model" data-i18n="ai.chatModel">Chat Model</label>
                             <input type="text" class="form-control" id="ai-chat-model" placeholder="deepseek-v4-flash">
-                            <div class="settings-field-hint" data-i18n="ai.chatModelHint">用于聊天对话的模型名称</div>
+                            <div class="settings-field-hint" data-i18n="ai.chatModelHint">Model used for chat conversations</div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- 参数设置 -->
+
             <div class="settings-panel">
                 <div class="settings-panel-header">
                     <div class="settings-panel-title">
                         <span class="settings-panel-icon settings-panel-icon--amber"><i class="bi bi-sliders"></i></span>
-                        <span data-i18n="ai.parameters">参数设置</span>
+                        <span data-i18n="ai.parameters">Parameters</span>
                     </div>
                 </div>
                 <div class="settings-panel-body">
                     <div class="settings-field-grid">
                         <div class="settings-field">
-                            <label class="form-label"><span data-i18n="ai.maxTokens">最大 Token 数</span></label>
+                            <label class="form-label"><span data-i18n="ai.maxTokens">Max Tokens</span></label>
                             <div class="d-flex align-items-center gap-2">
                                 <input type="range" class="form-range flex-grow-1" id="ai-max-tokens" min="256" max="32768" step="256" value="4096">
                                 <span class="ai-slider-val" id="ai-max-tokens-val">4096</span>
@@ -560,69 +568,69 @@
                             <div class="settings-field-hint" data-i18n="ai.maxTokensHint">256 - 32768 tokens</div>
                         </div>
                         <div class="settings-field">
-                            <label class="form-label"><span data-i18n="ai.temperature">随机性 (Temperature)</span></label>
+                            <label class="form-label"><span data-i18n="ai.temperature">Temperature</span></label>
                             <div class="d-flex align-items-center gap-2">
                                 <input type="range" class="form-range flex-grow-1" id="ai-temperature" min="0" max="2" step="0.1" value="0.7">
                                 <span class="ai-slider-val" id="ai-temperature-val">0.7</span>
                             </div>
-                            <div class="settings-field-hint" data-i18n="ai.temperatureHint">0 = 精确, 2 = 创造性</div>
+                            <div class="settings-field-hint" data-i18n="ai.temperatureHint">0 = precise, 2 = creative</div>
                         </div>
                         <div class="settings-field">
-                            <label class="form-label" data-i18n="ai.maxHistory">对话历史条数</label>
+                            <label class="form-label" data-i18n="ai.maxHistory">Conversation History</label>
                             <input type="number" class="form-control" id="ai-max-history" min="1" max="100" value="20">
-                            <div class="settings-field-hint" data-i18n="ai.maxHistoryHint">1 - 100 条</div>
+                            <div class="settings-field-hint" data-i18n="ai.maxHistoryHint">1 - 100 messages</div>
                         </div>
                         <div class="settings-field">
-                            <label class="form-label" data-i18n="ai.reasoningEffort">推理深度 (Reasoning)</label>
+                            <label class="form-label" data-i18n="ai.reasoningEffort">Reasoning Effort</label>
                             <select class="form-select" id="ai-reasoning-effort">
-                                <option value="auto" data-i18n="ai.reasoningAuto">自动</option>
-                                <option value="low" data-i18n="ai.reasoningLow">低</option>
-                                <option value="medium" data-i18n="ai.reasoningMedium">中</option>
-                                <option value="high" data-i18n="ai.reasoningHigh">高</option>
+                                <option value="auto" data-i18n="ai.reasoningAuto">Auto</option>
+                                <option value="low" data-i18n="ai.reasoningLow">Low</option>
+                                <option value="medium" data-i18n="ai.reasoningMedium">Medium</option>
+                                <option value="high" data-i18n="ai.reasoningHigh">High</option>
                             </select>
-                            <div class="settings-field-hint" data-i18n="ai.reasoningEffortHint">auto = 自动, low/medium/high = 逐级增强</div>
+                            <div class="settings-field-hint" data-i18n="ai.reasoningEffortHint">auto = automatic, low/medium/high = progressively stronger</div>
                         </div>
                         <div class="settings-field">
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" id="ai-use-cache" checked>
-                                <label class="form-check-label" for="ai-use-cache" data-i18n="ai.useCache">启用缓存</label>
+                                <label class="form-check-label" for="ai-use-cache" data-i18n="ai.useCache">Enable Cache</label>
                             </div>
-                            <div class="settings-field-desc" data-i18n="ai.useCacheHint">缓存重复请求以降低成本和延迟</div>
+                            <div class="settings-field-desc" data-i18n="ai.useCacheHint">Cache repeated requests to reduce cost and latency</div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- 高级功能 -->
+
             <div class="settings-panel">
                 <div class="settings-panel-header">
                     <div class="settings-panel-title">
                         <span class="settings-panel-icon settings-panel-icon--purple"><i class="bi bi-stars"></i></span>
-                        <span data-i18n="ai.advanced">高级功能</span>
+                        <span data-i18n="ai.advanced">Advanced</span>
                     </div>
                 </div>
                 <div class="settings-panel-body">
-                    <!-- AI 增强通知 -->
+
                     <div class="ai-advanced-item">
                         <div class="ai-advanced-header">
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" id="ai-enhance-notif">
-                                <label class="form-check-label" for="ai-enhance-notif" data-i18n="ai.enhanceNotif">AI 增强通知</label>
+                                <label class="form-check-label" for="ai-enhance-notif" data-i18n="ai.enhanceNotif">AI-Enhanced Notifications</label>
                             </div>
-                            <span class="ai-advanced-badge" data-i18n="ai.enhanceNotifBadge">无需额外配置</span>
+                            <span class="ai-advanced-badge" data-i18n="ai.enhanceNotifBadge">No extra config</span>
                         </div>
-                        <div class="settings-field-desc" data-i18n="ai.enhanceNotifDesc">何时用：网关频繁触发告警，想快速知道根因和处置方向时开启。怎么用：启用后，当发生熔断、重试耗尽、WAF 拦截、代理错误或限流时，系统会自动调用 AI 在原始告警后追加一条分析通知，包含可能原因和处置建议。</div>
+                        <div class="settings-field-desc" data-i18n="ai.enhanceNotifDesc">When to use: enable this when the gateway fires alerts frequently and you want a quick root-cause summary and remediation direction. How to use: once enabled, every circuit-breaker, retry-exhausted, WAF-block, proxy-error, or rate-limit alert is followed by an AI-generated analysis notification with likely cause and suggested actions.</div>
                         <div class="ai-example-card">
-                            <div class="ai-example-title"><i class="bi bi-lightbulb"></i> <span data-i18n="ai.enhanceNotifExampleTitle">效果示例</span></div>
+                            <div class="ai-example-title"><i class="bi bi-lightbulb"></i> <span data-i18n="ai.enhanceNotifExampleTitle">Example</span></div>
                             <div class="ai-example-body">
                                 <div class="ai-example-alert">
                                     <div class="ai-example-alert-original">
-                                        <span class="ai-example-label" data-i18n="ai.enhanceNotifOriginal">原始告警</span>
-                                        <div>熔断器已打开：cluster=order-api</div>
+                                        <span class="ai-example-label" data-i18n="ai.enhanceNotifOriginal">Original alert</span>
+                                        <div>Circuit breaker opened for cluster order-api</div>
                                     </div>
                                     <div class="ai-example-alert-enhanced">
-                                        <span class="ai-example-label" data-i18n="ai.enhanceNotifEnhanced">AI 增强</span>
-                                        <div data-i18n="ai.enhanceNotifExampleText">可能原因：下游 order-api 连续失败达到阈值。处置建议：检查目标服务健康状态，确认是否为瞬时网络抖动；如已恢复，可手动重置熔断器。</div>
+                                        <span class="ai-example-label" data-i18n="ai.enhanceNotifEnhanced">AI enhanced</span>
+                                        <div data-i18n="ai.enhanceNotifExampleText">Likely cause: downstream order-api has reached the failure threshold. Suggested action: check the target service health and confirm whether it is a transient network issue; if recovered, you may reset the circuit breaker manually.</div>
                                     </div>
                                 </div>
                             </div>
@@ -631,24 +639,24 @@
 
                     <hr class="ai-advanced-divider">
 
-                    <!-- MCP 服务器 -->
+
                     <div class="ai-advanced-item">
                         <div class="ai-advanced-header">
                             <div class="form-check form-switch">
                                 <input class="form-check-input" type="checkbox" id="ai-mcp-enabled">
-                                <label class="form-check-label" for="ai-mcp-enabled" data-i18n="ai.mcpServer">MCP 服务器</label>
+                                <label class="form-check-label" for="ai-mcp-enabled" data-i18n="ai.mcpServer">MCP Server</label>
                             </div>
-                            <span class="ai-advanced-badge" data-i18n="ai.mcpServerBadge">只读访问</span>
+                            <span class="ai-advanced-badge" data-i18n="ai.mcpServerBadge">Read-only</span>
                         </div>
-                        <div class="settings-field-desc" data-i18n="ai.mcpServerDesc">何时用：希望把网关状态接入外部 AI 工具（如 Claude、Cursor、Coze 等）自动化查询时使用。怎么用：启用并设置端口后，在外部工具中填入下方 URL 即可通过 server/discover 发现工具并调用 tools/call。</div>
+                        <div class="settings-field-desc" data-i18n="ai.mcpServerDesc">When to use: turn this on when you want external AI tools (e.g. Claude, Cursor, Coze) to query gateway state automatically. How to use: enable it and set a port, then paste the URL below into your external tool; it can discover tools via server/discover and call tools/call.</div>
 
                         <div class="row g-3 mt-1" id="ai-mcp-config" style="display:none;">
                             <div class="col-md-4">
-                                <label class="form-label" data-i18n="ai.mcpPort">端口</label>
+                                <label class="form-label" data-i18n="ai.mcpPort">Port</label>
                                 <input type="number" class="form-control" id="ai-mcp-port" min="1" max="65535" value="8090">
                             </div>
                             <div class="col-md-8">
-                                <label class="form-label" data-i18n="ai.mcpEndpoint">接入地址</label>
+                                <label class="form-label" data-i18n="ai.mcpEndpoint">Endpoint URL</label>
                                 <div class="input-group">
                                     <input type="text" class="form-control" id="ai-mcp-url" readonly value="http://localhost:8090/mcp">
                                     <button class="btn btn-outline-secondary" type="button" id="ai-mcp-copy-url" data-i18n-title="ai.copy">
@@ -659,14 +667,14 @@
                         </div>
 
                         <div class="ai-example-card" id="ai-mcp-examples" style="display:none;">
-                            <div class="ai-example-title"><i class="bi bi-code-square"></i> <span data-i18n="ai.mcpExampleTitle">接入示例</span></div>
+                            <div class="ai-example-title"><i class="bi bi-code-square"></i> <span data-i18n="ai.mcpExampleTitle">Connection examples</span></div>
                             <div class="ai-example-body">
                                 <ul class="nav nav-pills ai-example-tabs" id="ai-mcp-example-tabs" role="tablist">
                                     <li class="nav-item" role="presentation">
-                                        <button class="nav-link active" id="ai-mcp-tab-curl-discover" data-bs-toggle="tab" data-bs-target="#ai-mcp-pane-curl-discover" type="button" role="tab" aria-selected="true" data-i18n="ai.mcpTabCurlDiscover">cURL 发现</button>
+                                        <button class="nav-link active" id="ai-mcp-tab-curl-discover" data-bs-toggle="tab" data-bs-target="#ai-mcp-pane-curl-discover" type="button" role="tab" aria-selected="true" data-i18n="ai.mcpTabCurlDiscover">cURL discover</button>
                                     </li>
                                     <li class="nav-item" role="presentation">
-                                        <button class="nav-link" id="ai-mcp-tab-curl-call" data-bs-toggle="tab" data-bs-target="#ai-mcp-pane-curl-call" type="button" role="tab" aria-selected="false" data-i18n="ai.mcpTabCurlCall">cURL 调用</button>
+                                        <button class="nav-link" id="ai-mcp-tab-curl-call" data-bs-toggle="tab" data-bs-target="#ai-mcp-pane-curl-call" type="button" role="tab" aria-selected="false" data-i18n="ai.mcpTabCurlCall">cURL call</button>
                                     </li>
                                     <li class="nav-item" role="presentation">
                                         <button class="nav-link" id="ai-mcp-tab-python" data-bs-toggle="tab" data-bs-target="#ai-mcp-pane-python" type="button" role="tab" aria-selected="false" data-i18n="ai.mcpTabPython">Python</button>
@@ -701,11 +709,11 @@
 from mcp import Client
 
 async with Client("http://localhost:8090/mcp") as client:
-    # 发现工具
+    # Discover tools
     tools = await client.discover()
     print(tools)
 
-    # 调用工具查询路由
+    # Query routes using the tool
     result = await client.call_tool("list_routes", {})
     print(result)</code></pre>
                                     </div>
@@ -738,40 +746,40 @@ async with Client("http://localhost:8090/mcp") as client:
                 </div>
             </div>
 
-            <!-- 备用服务商 (Fallback) -->
+
             <div class="settings-panel">
                 <div class="settings-panel-header">
                     <div class="settings-panel-title">
                         <span class="settings-panel-icon settings-panel-icon--blue"><i class="bi bi-shuffle"></i></span>
-                        <span data-i18n="ai.fallback">备用服务商</span>
+                        <span data-i18n="ai.fallback">Fallback Provider</span>
                     </div>
-                    <span id="ai-fallback-status" class="settings-status-badge" data-i18n="ai.fallbackNotConfigured">未配置</span>
+                    <span id="ai-fallback-status" class="settings-status-badge" data-i18n="ai.fallbackNotConfigured">Fallback provider not configured</span>
                 </div>
                 <div class="settings-panel-body">
                     <div class="settings-field">
                         <div class="form-check form-switch">
                             <input class="form-check-input" type="checkbox" id="ai-fallback-enabled">
-                            <label class="form-check-label" for="ai-fallback-enabled" data-i18n="ai.fallback">备用服务商</label>
+                            <label class="form-check-label" for="ai-fallback-enabled" data-i18n="ai.fallback">Fallback Provider</label>
                         </div>
-                        <div class="settings-field-desc" data-i18n="ai.fallbackDesc">主服务商不可用时自动切换到备用服务商</div>
+                        <div class="settings-field-desc" data-i18n="ai.fallbackDesc">Auto-switch to fallback provider when primary is unavailable</div>
                     </div>
                     <div id="ai-fallback-config" style="display:none;">
                         <div class="settings-field-grid mt-3">
                             <div class="settings-field">
-                                <label class="form-label" data-i18n="ai.fallbackProvider">备用服务商</label>
+                                <label class="form-label" data-i18n="ai.fallbackProvider">Fallback Provider</label>
                                 <select class="form-select" id="ai-fallback-provider">
                                     <option value="deepseek">DeepSeek</option>
                                     <option value="openai">OpenAI</option>
                                     <option value="anthropic">Anthropic</option>
                                     <option value="google">Google</option>
                                     <option value="xai">xAI</option>
-                                    <option value="glm">GLM 智谱</option>
-                                    <option value="qwen">通义千问</option>
-                                    <option value="custom" data-i18n="ai.custom">自定义</option>
+                                    <option value="glm">Zhipu GLM</option>
+                                    <option value="qwen">Qwen</option>
+                                    <option value="custom" data-i18n="ai.custom">Custom</option>
                                 </select>
                             </div>
                             <div class="settings-field">
-                                <label class="form-label" data-i18n="ai.fallbackApiKey">备用 API Key</label>
+                                <label class="form-label" data-i18n="ai.fallbackApiKey">Fallback API Key</label>
                                 <div class="input-group">
                                     <input type="password" class="form-control" id="ai-fallback-api-key" placeholder="sk-...">
                                     <button class="btn btn-outline-secondary" type="button" id="ai-fallback-key-toggle" data-i18n-title="ai.showKey">
@@ -780,11 +788,11 @@ async with Client("http://localhost:8090/mcp") as client:
                                 </div>
                             </div>
                             <div class="settings-field">
-                                <label class="form-label" data-i18n="ai.fallbackBaseUrl">备用 Base URL</label>
+                                <label class="form-label" data-i18n="ai.fallbackBaseUrl">Fallback Base URL</label>
                                 <input type="text" class="form-control" id="ai-fallback-base-url" placeholder="https://api.openai.com/v1">
                             </div>
                             <div class="settings-field">
-                                <label class="form-label" data-i18n="ai.fallbackModel">备用模型</label>
+                                <label class="form-label" data-i18n="ai.fallbackModel">Fallback Model</label>
                                 <input type="text" class="form-control" id="ai-fallback-model" placeholder="gpt-5.6-luna">
                             </div>
                         </div>
@@ -792,15 +800,15 @@ async with Client("http://localhost:8090/mcp") as client:
                 </div>
             </div>
 
-            <!-- 测试结果内联显示 -->
+
             <div id="ai-test-result" class="ai-test-result" style="display:none;"></div>
 
             <div class="settings-action-bar">
                 <button class="btn btn-sm btn-primary" id="ai-btn-save">
-                    <i class="bi bi-check-lg"></i> <span data-i18n="ai.save">保存配置</span>
+                    <i class="bi bi-check-lg"></i> <span data-i18n="ai.save">Save Settings</span>
                 </button>
                 <button class="btn btn-sm btn-outline-secondary" id="ai-btn-test">
-                    <i class="bi bi-lightning"></i> <span data-i18n="ai.test">测试连接</span>
+                    <i class="bi bi-lightning"></i> <span data-i18n="ai.test">Test Connection</span>
                 </button>
             </div>
         </div>
@@ -812,7 +820,10 @@ async with Client("http://localhost:8090/mcp") as client:
 <!-- QRCode for 2FA setup (vendored locally - no CDN dependency for intranet) -->
 <script src="/_content/Aneiang.Yarp.Dashboard/js/vendor/qrcode.min.js" onerror="console.warn('[2FA] local qrcode lib failed to load, will fall back to manual secret entry')"></script>
 <!-- Two-factor authentication module (account security card) -->
-<script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-twofactor.js"></script>
+@if (!keycloakSso)
+{
+    <script src="/_content/Aneiang.Yarp.Dashboard/js/modules/dashboard-twofactor.js"></script>
+}
 @await Html.PartialAsync("_DashboardPageInit")
 <script>
     (async function() {

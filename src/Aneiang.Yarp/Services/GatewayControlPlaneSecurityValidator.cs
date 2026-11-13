@@ -2,6 +2,7 @@ using Aneiang.Yarp.Models;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Aneiang.Yarp.Iam;
 
 namespace Aneiang.Yarp.Services;
 
@@ -17,24 +18,27 @@ internal sealed class GatewayControlPlaneSecurityValidator : IHostedService
     private readonly ControlPlaneSecurityOptions _securityOptions;
     private readonly IHostEnvironment _environment;
     private readonly ILogger<GatewayControlPlaneSecurityValidator> _logger;
+    private readonly IamManagementAuthorization? _management;
 
     public GatewayControlPlaneSecurityValidator(
         GatewayControlPlaneOptions controlPlaneOptions,
         IOptions<GatewayApiAuthOptions> authOptions,
         IOptions<ControlPlaneSecurityOptions> securityOptions,
         IHostEnvironment environment,
-        ILogger<GatewayControlPlaneSecurityValidator> logger)
+        ILogger<GatewayControlPlaneSecurityValidator> logger,
+        IamManagementAuthorization? management = null)
     {
         _controlPlaneOptions = controlPlaneOptions;
         _authOptions = authOptions.Value;
         _securityOptions = securityOptions.Value;
         _environment = environment;
         _logger = logger;
+        _management = management;
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        if (!_controlPlaneOptions.EnableRegistration) return Task.CompletedTask;
+        if (!_controlPlaneOptions.EnableRegistration || _management is not null) return Task.CompletedTask;
 
         if (_environment.IsProduction() && _securityOptions.RequireAuthInProduction && _authOptions.Mode == GatewayApiAuthMode.None)
         {

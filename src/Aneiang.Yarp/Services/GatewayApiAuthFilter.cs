@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Extensions.Options;
+using Aneiang.Yarp.Iam;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Aneiang.Yarp.Services;
 
@@ -15,11 +17,18 @@ internal sealed class GatewayApiAuthFilter : IAsyncAuthorizationFilter
 
     public GatewayApiAuthFilter(IOptions<GatewayApiAuthOptions> options) => _options = options.Value;
 
-    public Task OnAuthorizationAsync(AuthorizationFilterContext context)
+    public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
     {
         if (context.ActionDescriptor is not ControllerActionDescriptor { ControllerTypeInfo: var typeInfo } ||
             typeInfo.AsType() != typeof(GatewayConfigController))
-            return Task.CompletedTask;
+            return;
+
+        if (context.HttpContext.RequestServices.GetService<IamManagementAuthorization>() is { } management)
+        {
+            var status = await management.AuthorizeAsync(context.HttpContext, service: true);
+            if (status != StatusCodes.Status200OK) context.Result = new StatusCodeResult(status);
+            return;
+        }
 
         var request = context.HttpContext.Request;
         var ok = _options.Mode switch
@@ -33,7 +42,6 @@ internal sealed class GatewayApiAuthFilter : IAsyncAuthorizationFilter
         if (!ok)
             context.Result = new JsonResult(new { code = 401, message = "Unauthorized" }) { StatusCode = StatusCodes.Status401Unauthorized };
 
-        return Task.CompletedTask;
     }
 
     private bool ValidateBasic(HttpRequest request)

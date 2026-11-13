@@ -71,6 +71,9 @@ public sealed class McpServerHost : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // The separate MCP listener uses its own credentials and is unavailable with Keycloak management.
+        if (_services.GetService<Aneiang.Yarp.Iam.IamManagementAuthorization>() is not null) return;
+
         try { await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken); }
         catch (OperationCanceledException) { return; }
 

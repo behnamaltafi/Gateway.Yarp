@@ -5,8 +5,8 @@
 <script>
     window.__dashboard = window.__dashboard || {};
     var dash = window.__dashboard;
-    dash.basePath = '/' + '@ViewBag.DashboardRoutePrefix';
-    dash.token = localStorage.getItem('dashboard_token');
+    dash.basePath = '@Context.Request.PathBase/@ViewBag.DashboardRoutePrefix';
+    dash.token = dash.sso ? null : localStorage.getItem('dashboard_token');
     dash.CURRENT_LOCALE = '@ViewBag.Locale';
     dash.I18N = @Html.Raw(ViewBag.AllI18nJson ?? "{}");
     dash.currentPage = '@ViewBag.CurrentPage';

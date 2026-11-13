@@ -338,6 +338,7 @@ await Check("Deployment roles isolate documentation from public proxy/health lis
         Assert(reached == (mode == DeploymentMode.AllInOne || (mode == DeploymentMode.Split && role == "Dashboard")), mode + "/" + role);
     }
 });
+await Check("Keycloak SSO and IAM management boundary", DashboardSsoFixture.RunAsync);
 await Check("Only the existing Aneiang configuration provider is registered", () =>
 {
     Assert(app.Services.GetServices<IProxyConfigProvider>().Single() == provider);
@@ -364,7 +365,7 @@ await Check("Dashboard pages, native cluster editing, SQLite persistence and sna
     Assert((await http.GetAsync("/openapi/alpha.json")).IsSuccessStatusCode);
     var page = await http.GetStringAsync("/test-dashboard/documentation");
     Assert(page.Contains("/swagger") && page.Contains("/scalar") && page.Contains("alpha"));
-    Assert(DashboardI18n.EnUS.ContainsKey("openapi.title") && DashboardI18n.ZhCN.ContainsKey("openapi.title"));
+    Assert(DashboardI18n.GetDict("zh-CN")["openapi.title"] == DashboardI18n.EnUS["openapi.title"]);
     var history = host.Services.GetRequiredService<IConfigPersistenceService>();
     var snapshot = await history.SaveSnapshotAsync("OpenAPI enabled");
     var disabled = Cluster("alpha", address, enabled: false);

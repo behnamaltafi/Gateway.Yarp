@@ -14,7 +14,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - @((ViewBag.Locale as string) == "en-US" ? "Gateway Dashboard" : "网关维护仪表盘")</title>
+    <title>@ViewData["Title"] - @("Gateway Dashboard")</title>
     <link rel="icon" type="image/png" href="/_content/Aneiang.Yarp.Dashboard/images/logo.png" />
     <script>document.documentElement.classList.add('js');</script>
     <script>
@@ -80,11 +80,11 @@
             color: var(--primary-color);
             transition: color 0.2s ease;
         }
-        
+
         * {
             box-sizing: border-box;
         }
-        
+
         body { 
             background: var(--bg-color); 
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -94,7 +94,7 @@
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
         }
-        
+
         /* Sidebar Styles */
         .sidebar {
             position: fixed;
@@ -225,7 +225,6 @@
             line-height: 1;
             transition: color 0.15s ease;
         }
-        /* 双图标：随侧栏状态切换 */
         .sidebar-collapse-btn .icon-expand { display: none; }
         .sidebar.collapsed .sidebar-collapse-btn .icon-collapse { display: none; }
         .sidebar.collapsed .sidebar-collapse-btn .icon-expand { display: block; }
@@ -550,7 +549,7 @@
         .nav-badge-count.health-dot.healthy { background: #10b981; }
         .nav-badge-count.health-dot.unhealthy { background: #ef4444; }
         .nav-badge-count.metric { font-size: 9.5px; letter-spacing: 0.3px; }
-        
+
         /* ── Topbar Action Buttons ── */
         .topbar-action {
             width: 32px; height: 32px;
@@ -737,7 +736,7 @@
         .topbar-user-dropdown-item.danger:hover i {
             color: #dc2626;
         }
-        
+
         /* Main Content */
         .main-content {
             margin-left: var(--sidebar-width); 
@@ -823,7 +822,7 @@
             border-radius: 4px; background: rgba(148,163,184,0.15);
             color: var(--text-secondary); font-family: var(--font-mono);
         }
-        
+
         /* Stat Cards */
         .stat-card {
             background: var(--card-bg);
@@ -837,7 +836,7 @@
         .stat-card:hover {
             box-shadow: var(--shadow-md);
         }
-        
+
         .stat-card .stat-icon {
             width: 48px; height: 48px; 
             border-radius: 12px;
@@ -849,7 +848,7 @@
         .stat-card:hover .stat-icon {
             transform: scale(1.05);
         }
-        
+
         .stat-card .stat-value { 
             font-size: 32px; font-weight: 700; 
             color: var(--text-primary);
@@ -999,7 +998,7 @@
             flex: 1;
             min-width: 0;
         }
-        
+
         .card-panel .card-header > div:last-child,
         .card-panel .card-header > span:last-child:not(:first-child) {
             display: flex;
@@ -1042,12 +1041,12 @@
             font-size: 12px;
             color: var(--text-muted);
         }
-        
+
         .card-panel .card-header i {
             font-size: 16px;
             color: var(--primary-color);
         }
-        
+
         .card-panel .card-body {
             padding: 16px 20px;
         }
@@ -1119,7 +1118,6 @@
         .breadcrumb-bar .separator { font-size: 10px; opacity: 0.5; }
         .breadcrumb-bar .current { color: var(--text-secondary); font-weight: 500; }
 
-        /* 批量操作栏：轻量上下文工具组，避免彩色描边按钮造成视觉噪音。 */
         .batch-bar {
             display: none;
             align-items: center;
@@ -1237,7 +1235,7 @@
             font-size: 13px;
             color: var(--text-muted);
         }
-        
+
         /* Health Indicators */
         .health-dot {
             display: inline-block; 
@@ -1247,7 +1245,7 @@
             margin-right: 6px;
             position: relative;
         }
-        
+
         .health-dot::after {
             content: '';
             position: absolute;
@@ -1258,7 +1256,7 @@
             border-radius: 50%;
             opacity: 0.3;
         }
-        
+
         .health-dot.healthy {
             background: var(--success-color);
         }
@@ -1278,11 +1276,11 @@
         .health-dot.unhealthy {
             background: var(--danger-color);
         }
-        
+
         .health-dot.unhealthy::after {
             background: var(--danger-color);
         }
-        
+
         /* Tables */
         .table { 
             font-size: 14px; 
@@ -1290,7 +1288,7 @@
             border-collapse: separate;
             border-spacing: 0;
         }
-        
+
         .table thead th { 
             font-weight: 600; 
             color: var(--text-secondary); 
@@ -1304,7 +1302,7 @@
             top: 0;
             z-index: 2;
         }
-        
+
         .table thead th:first-child {
             border-top-left-radius: 10px;
         }
@@ -1318,7 +1316,7 @@
             border-bottom: 1px solid #f1f5f9;
             transition: background 0.15s ease;
         }
-        
+
         .table-hover tbody tr {
             transition: background 0.15s ease, box-shadow 0.15s ease;
         }
@@ -1327,18 +1325,18 @@
             background-color: rgba(99, 102, 241, 0.06);
             box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.08);
         }
-        
+
         .table-hover tbody tr:hover td {
             border-bottom-color: #e2e8f0;
         }
-        
+
         .badge-order { 
             font-size: 12px; 
             min-width: 28px;
             padding: 4px 8px;
             border-radius: 6px;
         }
-        
+
         /* Error Items */
         .error-item {
             padding: 14px 18px; 
@@ -1346,25 +1344,25 @@
             font-size: 13px; 
             transition: background 0.2s ease;
         }
-        
+
         .error-item:hover { 
             background: rgba(239, 68, 68, 0.04); 
         }
-        
+
         .error-item:last-child { 
             border-bottom: none; 
         }
-        
+
         .error-item .error-time { 
             color: var(--text-muted); 
             font-size: 12px;
         }
-        
+
         .error-item .error-msg { 
             color: var(--danger-color); 
             word-break: break-all;
         }
-        
+
         /* Cluster & Route Table Styles - Health Color Bar */
         .cluster-row.health-healthy { border-left: 4px solid #22c55e; }
         .cluster-row.health-unhealthy { border-left: 4px solid #ef4444; }
@@ -1399,7 +1397,7 @@
         .route-row.route-disabled:hover {
             opacity: 0.8;
         }
-        
+
         /* Route Priority Badge Styles */
         .priority-badge {
             display: inline-flex;
@@ -1431,7 +1429,7 @@
             color: #94a3b8;
             border: 1px solid #e2e8f0;
         }
-        
+
         /* Row Expand Icon */
         .row-expand-icon { 
             display: inline-block;
@@ -1443,7 +1441,7 @@
             transform: rotate(90deg);
             color: #3b82f6;
         }
-        
+
         /* Copy Button */
         .copy-btn {
             display: inline-flex;
@@ -1467,13 +1465,13 @@
         .copy-btn.copied {
             color: #22c55e;
         }
-        
+
         /* Action Buttons in Table */
         .btn-group-sm .btn {
             padding: 4px 8px;
             font-size: 13px;
         }
-        
+
         /* Truncated cell with copy */
         .cell-with-copy {
             display: flex;
@@ -1492,9 +1490,9 @@
         .cell-with-copy .badge.cell-text {
             max-width: 100%;
         }
-        
+
         /* Table Row Styles */
-        
+
         /* Detail Row Styles */
         .cluster-detail-row td, .route-detail-row td {
             padding: 0;
@@ -1531,7 +1529,7 @@
             color: #3b82f6;
             font-size: 16px;
         }
-        
+
         /* Detail Info Grid */
         .detail-info-grid {
             display: flex;
@@ -1553,7 +1551,7 @@
             align-items: center;
             gap: 4px;
         }
-        
+
         .detail-panel .detail-table {
             font-size: 13px;
             margin-bottom: 0;
@@ -1788,38 +1786,38 @@
             white-space: pre-wrap;
             word-break: break-all;
         }
-        
+
         /* Log Module Styles - Seq-like Design */
         .log-entries-container {
             font-family: 'Inter', Consolas, monospace;
             font-size: 13px;
             line-height: 1.6;
         }
-        
+
         /* Log Level Color Bar */
         .log-item {
             border-bottom: 1px solid var(--border-color);
             position: relative;
         }
-        
+
         .log-item:last-child {
             border-bottom: none;
         }
-        
+
         /* Level-specific left border color */
         .log-item.level-info { border-left: 4px solid #3b82f6; }
         .log-item.level-warning { border-left: 4px solid #f59e0b; }
         .log-item.level-error { border-left: 4px solid #ef4444; }
         .log-item.level-critical { border-left: 4px solid #991b1b; }
         .log-item.level-debug { border-left: 4px solid #64748b; }
-        
+
         /* Level-specific row background hover */
         .log-item.level-info .log-row:hover { background: rgba(59, 130, 246, 0.08); }
         .log-item.level-warning .log-row:hover { background: rgba(245, 158, 11, 0.08); }
         .log-item.level-error .log-row:hover { background: rgba(239, 68, 68, 0.08); }
         .log-item.level-critical .log-row:hover { background: rgba(153, 27, 27, 0.08); }
         .log-item.level-debug .log-row:hover { background: rgba(100, 116, 139, 0.08); }
-        
+
         .log-row {
             display: flex;
             gap: 12px;
@@ -1829,7 +1827,7 @@
             cursor: pointer;
             user-select: none;
         }
-        
+
         /* Log Level Badge - more prominent */
         .log-level-badge {
             display: inline-flex;
@@ -1842,13 +1840,13 @@
             min-width: 70px;
             justify-content: center;
         }
-        
+
         .log-level-badge.info { background: #dbeafe; color: #1d4ed8; }
         .log-level-badge.warning { background: #fef3c7; color: #b45309; }
         .log-level-badge.error { background: #fee2e2; color: #b91c1c; }
         .log-level-badge.critical { background: #991b1b; color: #fff; }
         .log-level-badge.debug { background: #f1f5f9; color: #475569; }
-        
+
         .log-detail {
             display: none;
             padding: 12px 16px 16px;
@@ -1856,16 +1854,16 @@
             border-top: 1px dashed var(--border-color);
             font-size: 12px;
         }
-        
+
         .log-detail.expanded {
             display: block;
         }
-        
+
         /* Log Arrow Icon */
         .log-arrow {
             transition: transform 0.2s ease;
         }
-        
+
         .log-arrow.expanded {
             transform: rotate(90deg);
         }
@@ -2005,7 +2003,7 @@
             color: #64748b;
         }
         .log-meta-row strong { color: #475569; }
-        
+
         /* Paired Request+Response Log Item */
         .log-paired-item {
             border-left-width: 4px;
@@ -2087,31 +2085,31 @@
             color: var(--text-secondary);
             flex-shrink: 0;
         }
-        
+
         /* Log Toolbar in Card Panel */
         .card-panel .card-body.py-2 {
             padding: 12px 16px;
         }
-        
+
         .card-panel .card-body .form-select-sm,
         .card-panel .card-body .form-control-sm,
         .card-panel .card-body .btn-sm {
             font-size: 13px;
         }
-        
+
         .card-panel .card-body .btn-sm {
             padding: 6px 12px;
         }
-        
+
         .card-panel .card-body .form-select-sm {
             padding: 6px 24px 6px 8px;
             background-position: right 6px center;
         }
-        
+
         .card-panel .card-body .form-control-sm {
             padding: 6px 12px;
         }
-        
+
         /* Refresh Badge */
         .refresh-badge { 
             font-size: 12px; 
@@ -2121,7 +2119,7 @@
             display: inline-flex;
             align-items: center;
         }
-        
+
         /* Buttons */
         .btn {
             font-weight: 500;
@@ -2129,7 +2127,7 @@
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
             letter-spacing: 0.01em;
         }
-        
+
         .btn-sm {
             padding: 5px 12px;
             font-size: 13px;
@@ -2139,7 +2137,7 @@
         .btn-lg {
             border-radius: 10px;
         }
-        
+
         .btn-primary {
             background: var(--primary-color);
             border-color: var(--primary-color);
@@ -2298,14 +2296,14 @@
             flex: 1;
             min-width: 0;
         }
-        
+
         .info-bar-actions {
             display: flex;
             align-items: center;
             gap: 8px;
             flex-shrink: 0;
         }
-        
+
         .info-bar-content span {
             display: inline-flex;
             align-items: center;
@@ -2320,17 +2318,17 @@
         .info-bar-content span:hover {
             background: rgba(99,102,241,0.06);
         }
-        
+
         .info-bar-content i {
             color: var(--primary-color);
             font-size: 14px;
         }
-        
+
         .info-bar-content strong {
             color: var(--text-primary);
             font-weight: 600;
         }
-        
+
         /* Icon Button Style */
         .btn-icon {
             width: 32px;
@@ -2351,11 +2349,11 @@
         .btn-icon:active {
             background: rgba(99,102,241,0.1);
         }
-        
+
         .btn-icon i {
             margin: 0;
         }
-        
+
         /* Responsive Info Bar */
         @@media (max-width: 992px) {
             .info-bar-content {
@@ -2366,7 +2364,7 @@
                 font-size: 18px;
             }
         }
-        
+
         @@media (max-width: 768px) {
             .sidebar {
                 transform: translateX(-100%);
@@ -2386,11 +2384,11 @@
                 align-items: stretch;
                 gap: 8px;
             }
-            
+
             .info-bar-content {
                 justify-content: center;
             }
-            
+
             .info-bar-actions {
                 justify-content: center;
             }
@@ -2424,14 +2422,14 @@
                 padding: 16px;
             }
         }
-        
+
         @@media (max-width: 576px) {
             .info-bar-content span {
                 font-size: 12px;
                 gap: 4px;
                 padding: 3px 6px;
             }
-            
+
             .info-bar-content i {
                 font-size: 12px;
             }
@@ -2454,7 +2452,7 @@
                 font-size: 24px;
             }
         }
-        
+
         /* Animations */
         @@keyframes fadeIn {
             from {
@@ -2558,22 +2556,22 @@
         .signalr-off .signalr-dot {
             background: #cbd5e1;
         }
-        
+
         /* Scrollbar */
         ::-webkit-scrollbar {
             width: 8px;
             height: 8px;
         }
-        
+
         ::-webkit-scrollbar-track {
             background: var(--bg-color);
         }
-        
+
         ::-webkit-scrollbar-thumb {
             background: #cbd5e1;
             border-radius: 4px;
         }
-        
+
         ::-webkit-scrollbar-thumb:hover {
             background: #94a3b8;
         }
@@ -2822,12 +2820,10 @@
         /* Sidebar Collapsed State — Icon Rail + Tooltip */
         .sidebar.collapsed { width: var(--collapsed-width); }
 
-        /* 品牌区：仅显示图标，按钮已移到底部 footer */
         .sidebar.collapsed .brand { flex-direction: column; gap: 0; height: 60px; padding: 0; }
         .sidebar.collapsed .brand-logo { flex: 0 0 auto; justify-content: center; width: 100%; }
         .sidebar.collapsed .brand-text { display: none; }
 
-        /* 导航：隐藏分组标题，扁平化展开所有图标 */
         .sidebar.collapsed .sidebar-nav { padding: 8px 6px 12px; overflow: visible; }
         .sidebar.collapsed .section-header { display: none; }
         .sidebar.collapsed .nav-collapse { display: block; max-height: none; overflow: visible; }
@@ -2845,19 +2841,16 @@
         .sidebar.collapsed .nav-badge-count { display: none; }
         .sidebar.collapsed .nav-link.has-submenu::after { display: none; }
 
-        /* 子菜单扁平化：缩进、圆点、箭头全部隐藏 */
         .sidebar.collapsed .nav-submenu { max-height: none; overflow: visible; }
         .sidebar.collapsed .nav-submenu .nav-link { padding: 11px 0; margin: 2px 0; border-left-color: transparent; }
         .sidebar.collapsed .nav-dot { display: none; }
 
-        /* 分组间细分隔线（弥补隐藏的分组标题） */
         .sidebar.collapsed .nav-section + .nav-section {
             margin-top: 8px;
             padding-top: 8px;
             border-top: 1px solid var(--sidebar-border);
         }
 
-        /* Tooltip：图标 hover 显示项目名 */
         .sidebar.collapsed .nav-link:hover::before {
             content: attr(data-title);
             display: block;
@@ -4770,7 +4763,6 @@
             .ai-float-btn { right: 16px; bottom: 16px; }
         }
 
-        /* ===== FormBuilder: 卡片分组 · 简约风格 ===== */
         .fb-card {
             background: var(--card-bg, #fff);
             border: 1px solid var(--border-color, #e2e8f0);
@@ -4819,7 +4811,6 @@
         }
         .fb-object { width: 100%; }
 
-        /* 动态键对象 (e.g. Destinations) */
         .fb-pattern-object { width: 100%; }
         .fb-pattern-entry {
             border: 1px solid var(--border-color, #e2e8f0);
@@ -4845,7 +4836,6 @@
         .fb-pattern-entry-name > i { color: var(--primary-light, #6366f1); }
         .fb-pattern-entry .fb-field:last-child { margin-bottom: 0; }
 
-        /* 数组字段容器 */
         .fb-card .array-field { width: 100%; }
 
         /* ===== Proxy config apply-error hint bar (list pages) ===== */
@@ -4889,7 +4879,7 @@
     <div class="mobile-topbar" id="mobile-topbar">
         <div class="mobile-topbar-brand">
             <img src="/_content/Aneiang.Yarp.Dashboard/images/logo.png" alt="logo" />
-            <span data-i18n="layout.brand">@((ViewBag.Locale as string) == "en-US" ? "Gateway Dashboard" : "网关维护仪表盘")</span>
+            <span data-i18n="layout.brand">@("Gateway Dashboard")</span>
         </div>
         <button class="hamburger-btn" id="hamburger-btn" onclick="toggleMobileSidebar()">
             <span></span><span></span><span></span>
@@ -4907,8 +4897,8 @@
                     <img src="/_content/Aneiang.Yarp.Dashboard/images/logo.png" alt="logo" />
                 </div>
                 <div class="brand-text">
-                    <div class="brand-title" data-i18n="layout.brand">网关维护仪表盘</div>
-                    <div class="brand-subtitle" data-i18n="layout.console">网关控制台</div>
+                    <div class="brand-title" data-i18n="layout.brand">Gateway Dashboard</div>
+                    <div class="brand-subtitle" data-i18n="layout.console">Gateway Console</div>
                 </div>
             </div>
         </div>
@@ -4916,21 +4906,20 @@
         @{
             var currentPage = ViewBag.CurrentPage as string ?? "overview";
             var prefix = ViewBag.DashboardRoutePrefix as string ?? "apigateway";
-            var isEn = (ViewBag.Locale as string) == "en-US";
 
             // Server-side fallback titles for plugin-contributed nav items (shown before JS i18n applies).
             var pluginNavFallbackTitles = new System.Collections.Generic.Dictionary<string, string>
             {
-                ["menu.rateLimit"] = isEn ? "Rate Limiting" : "限流策略",
-                ["menu.waf"] = isEn ? "WAF Firewall" : "WAF 防火墙",
-                ["menu.retry"] = isEn ? "Request Retry" : "请求重试",
-                ["menu.responseCache"] = isEn ? "Response Cache" : "响应缓存",
-                ["menu.serviceDiscovery"] = isEn ? "Service Discovery" : "服务发现",
-                ["menu.compression"] = isEn ? "Response Compression" : "响应压缩",
-                ["menu.circuits"] = isEn ? "Circuit Breaker" : "熔断状态",
-                ["menu.logs"] = isEn ? "Real-time Logs" : "实时日志",
-                ["menu.traffic"] = isEn ? "Traffic Monitor" : "流量监控",
-                ["menu.clusterMetrics"] = isEn ? "Cluster Metrics" : "集群指标"
+                ["menu.rateLimit"] = "Rate Limiting",
+                ["menu.waf"] = "WAF Firewall",
+                ["menu.retry"] = "Request Retry",
+                ["menu.responseCache"] = "Response Cache",
+                ["menu.serviceDiscovery"] = "Service Discovery",
+                ["menu.compression"] = "Response Compression",
+                ["menu.circuits"] = "Circuit Breaker",
+                ["menu.logs"] = "Real-time Logs",
+                ["menu.traffic"] = "Traffic Monitor",
+                ["menu.clusterMetrics"] = "Cluster Metrics"
             };
 
             // Menu helper types
@@ -4938,52 +4927,52 @@
             var menuGroups = new (string Title, string I18nKey, (string Key, string Title, string I18nKey, string Icon, string Path, string BadgeType, object[] Children)[] Items)[]
             {
                 (
-                    isEn ? "Overview" : "总览",
+                    "Overview",
                     "menu.group.overview",
                     new[]
                     {
-                        ("overview", isEn ? "Dashboard" : "仪表盘", "menu.overview", "bi-speedometer2", $"/{prefix}/", "health", Array.Empty<object>())
+                        ("overview", "Dashboard", "menu.overview", "bi-speedometer2", $"/{prefix}/", "health", Array.Empty<object>())
                     }
                 ),
                 (
-                    isEn ? "Gateway Config" : "网关配置",
+                    "Gateway Config",
                     "menu.group.gateway",
                     new[]
                     {
-                        ("clusters", isEn ? "Clusters" : "服务集群", "menu.clusters", "bi-diagram-3", $"/{prefix}/clusters", "count", Array.Empty<object>()),
-                        ("routes", isEn ? "Routes" : "路由配置", "menu.routes", "bi-signpost-split", $"/{prefix}/routes", "count", Array.Empty<object>()),
-                        ("history", isEn ? "Config History" : "配置历史", "menu.history", "bi-clock-history", $"/{prefix}/history", "", Array.Empty<object>())
+                        ("clusters", "Clusters", "menu.clusters", "bi-diagram-3", $"/{prefix}/clusters", "count", Array.Empty<object>()),
+                        ("routes", "Routes", "menu.routes", "bi-signpost-split", $"/{prefix}/routes", "count", Array.Empty<object>()),
+                        ("history", "Config History", "menu.history", "bi-clock-history", $"/{prefix}/history", "", Array.Empty<object>())
                     }
                 ),
                 (
-                    isEn ? "Plugin Center" : "插件中心",
+                    "Plugin Center",
                     "menu.group.plugins",
                     new[]
                     {
-                        ("plugins", isEn ? "Plugin Manager" : "插件管理", "menu.plugins", "bi-puzzle", $"/{prefix}/plugins", "ratio", Array.Empty<object>()),
-                        ("plugin-center", isEn ? "Plugin Center" : "插件中心", "menu.pluginCenter", "bi-grid-3x3-gap", $"/{prefix}/plugin-center", "", Array.Empty<object>()),
-                        ("plugin-resources", isEn ? "Plugin Resources" : "插件资源", "menu.pluginResources", "bi-cpu", $"/{prefix}/plugin-resources", "", Array.Empty<object>())
+                        ("plugins", "Plugin Manager", "menu.plugins", "bi-puzzle", $"/{prefix}/plugins", "ratio", Array.Empty<object>()),
+                        ("plugin-center", "Plugin Center", "menu.pluginCenter", "bi-grid-3x3-gap", $"/{prefix}/plugin-center", "", Array.Empty<object>()),
+                        ("plugin-resources", "Plugin Resources", "menu.pluginResources", "bi-cpu", $"/{prefix}/plugin-resources", "", Array.Empty<object>())
                     }
                 ),
                 (
-                    isEn ? "Operations" : "运维监控",
+                    "Operations",
                     "menu.group.operations",
                     new[]
                     {
-                        ("traffic", isEn ? "Traffic Monitor" : "流量监控", "menu.traffic", "bi-graph-up-arrow", $"/{prefix}/traffic", "", Array.Empty<object>()),
-                        ("cluster-metrics", isEn ? "Cluster Metrics" : "集群指标", "menu.clusterMetrics", "bi-diagram-3-fill", $"/{prefix}/cluster-metrics", "", Array.Empty<object>()),
-                        ("circuits", isEn ? "Circuit Breaker" : "熔断状态", "menu.circuits", "bi-lightning-charge", $"/{prefix}/circuits", "", Array.Empty<object>()),
-                        ("logs", isEn ? "Real-time Logs" : "实时日志", "menu.logs", "bi-journal-text", $"/{prefix}/logs", "", Array.Empty<object>())
+                        ("traffic", "Traffic Monitor", "menu.traffic", "bi-graph-up-arrow", $"/{prefix}/traffic", "", Array.Empty<object>()),
+                        ("cluster-metrics", "Cluster Metrics", "menu.clusterMetrics", "bi-diagram-3-fill", $"/{prefix}/cluster-metrics", "", Array.Empty<object>()),
+                        ("circuits", "Circuit Breaker", "menu.circuits", "bi-lightning-charge", $"/{prefix}/circuits", "", Array.Empty<object>()),
+                        ("logs", "Real-time Logs", "menu.logs", "bi-journal-text", $"/{prefix}/logs", "", Array.Empty<object>())
                     }
                 ),
                 (
-                    isEn ? "System" : "系统管理",
+                    "System",
                     "menu.group.system",
                     new[]
                     {
-                        ("audit", isEn ? "Audit Log" : "审计日志", "menu.audit", "bi-shield-check", $"/{prefix}/audit", "", Array.Empty<object>()),
-                        ("notifications", isEn ? "Notifications" : "通知管理", "menu.notifications", "bi-bell", $"/{prefix}/notifications", "", Array.Empty<object>()),
-                        ("settings", isEn ? "Settings" : "系统设置", "menu.settings", "bi-gear", $"/{prefix}/settings", "", Array.Empty<object>())
+                        ("audit", "Audit Log", "menu.audit", "bi-shield-check", $"/{prefix}/audit", "", Array.Empty<object>()),
+                        ("notifications", "Notifications", "menu.notifications", "bi-bell", $"/{prefix}/notifications", "", Array.Empty<object>()),
+                        ("settings", "Settings", "menu.settings", "bi-gear", $"/{prefix}/settings", "", Array.Empty<object>())
                     }
                 )
             };
@@ -5127,8 +5116,8 @@
         <!-- Sidebar Footer -->
         <div class="sidebar-footer">
             <button class="sidebar-collapse-btn" id="sidebar-collapse-btn" type="button" onclick="toggleSidebarCollapse()"
-                    data-i18n-title="layout.sidebar.collapse" title="@((ViewBag.Locale as string) == "en-US" ? "Collapse sidebar" : "收起侧栏")"
-                    aria-label="@((ViewBag.Locale as string) == "en-US" ? "Collapse sidebar" : "收起侧栏")">
+                    data-i18n-title="layout.sidebar.collapse" title="@("Collapse sidebar")"
+                    aria-label="@("Collapse sidebar")">
                 <i class="bi bi-chevron-bar-left icon-collapse"></i>
                 <i class="bi bi-chevron-bar-right icon-expand"></i>
             </button>
@@ -5143,25 +5132,24 @@
         {
             var pgName = ViewBag.CurrentPage as string ?? "overview";
             var pgPrefix = ViewBag.DashboardRoutePrefix as string ?? "apigateway";
-            var pgIsEn = (ViewBag.Locale as string) == "en-US";
             var pageTitles = new System.Collections.Generic.Dictionary<string, string>
             {
-                {"overview", pgIsEn ? "Overview" : "总览"},
-                {"clusters", pgIsEn ? "Clusters" : "服务集群"},
-                {"routes", pgIsEn ? "Routes" : "路由配置"},
-                {"circuits", pgIsEn ? "Circuit Breaker" : "熔断状态"},
-                {"settings", pgIsEn ? "Settings" : "系统设置"},
-                {"plugins", pgIsEn ? "Plugin Manager" : "插件管理"},
-                {"plugin-center", pgIsEn ? "Plugin Center" : "插件中心"},
-                {"plugin-resources", pgIsEn ? "Plugin Resources" : "插件资源"},
-                {"logs", pgIsEn ? "Real-time Logs" : "实时日志"},
-                {"history", pgIsEn ? "Configuration History" : "配置历史"},
-                {"audit", pgIsEn ? "Audit Log" : "审计日志"},
-                {"notifications", pgIsEn ? "Notifications" : "通知管理"},
-                {"traffic", pgIsEn ? "Traffic Monitor" : "流量监控"},
-                {"cluster-metrics", pgIsEn ? "Cluster Metrics" : "集群指标"},
-                {"compression", pgIsEn ? "Response Compression" : "响应压缩"},
-                {"proxy-log", pgIsEn ? "Log Plugin" : "日志插件"}
+                {"overview", "Overview"},
+                {"clusters", "Clusters"},
+                {"routes", "Routes"},
+                {"circuits", "Circuit Breaker"},
+                {"settings", "Settings"},
+                {"plugins", "Plugin Manager"},
+                {"plugin-center", "Plugin Center"},
+                {"plugin-resources", "Plugin Resources"},
+                {"logs", "Real-time Logs"},
+                {"history", "Configuration History"},
+                {"audit", "Audit Log"},
+                {"notifications", "Notifications"},
+                {"traffic", "Traffic Monitor"},
+                {"cluster-metrics", "Cluster Metrics"},
+                {"compression", "Response Compression"},
+                {"proxy-log", "Log Plugin"}
             };
             var pageIcons = new System.Collections.Generic.Dictionary<string, string>
             {
@@ -5196,13 +5184,10 @@
                             <i class="bi bi-search"></i>
                             <kbd>Ctrl K</kbd>
                         </div>
-                        <span class="pulse-dot" data-i18n-title="layout.live" title="@((ViewBag.Locale as string) == "en-US" ? "Live" : "在线")"></span>
-                        <span class="refresh-badge" style="font-size:12px;" data-i18n="layout.live">@((ViewBag.Locale as string) == "en-US" ? "Live" : "实时")</span>
-                        <a class="topbar-action" href="/@pgPrefix/settings" data-i18n-title="menu.settings" title="@(isEn ? "Settings" : "系统设置")" aria-label="@(isEn ? "Settings" : "系统设置")">
+                        <span class="pulse-dot" data-i18n-title="layout.live" title="@("Live")"></span>
+                        <span class="refresh-badge" style="font-size:12px;" data-i18n="layout.live">@("Live")</span>
+                        <a class="topbar-action" href="/@pgPrefix/settings" data-i18n-title="menu.settings" title="@("Settings")" aria-label="@("Settings")">
                             <i class="bi bi-gear"></i>
-                        </a>
-                        <a class="topbar-action" href="#" onclick="switchLocale();return false;" title="@(((ViewBag.Locale as string) == "en-US") ? "切换到中文" : "Switch to English")" data-i18n-title="layout.lang.switch" aria-label="@(((ViewBag.Locale as string) == "en-US") ? "切换到中文" : "Switch to English")">
-                            <i class="bi bi-translate"></i>
                         </a>
                         <div class="topbar-user">
                             <button class="topbar-user-trigger" id="topbar-user-trigger" onclick="toggleUserDropdown(event)">
@@ -5210,20 +5195,20 @@
                                     <i class="bi bi-person-circle"></i>
                                 </div>
                                 <div class="d-none d-md-block text-start">
-                                    <div class="topbar-user-name" id="topbar-username" data-i18n="layout.user.loggedIn">已登录</div>
-                                    <div class="topbar-user-role" data-i18n="layout.user.online">在线</div>
+                                    <div class="topbar-user-name" id="topbar-username" data-i18n="layout.user.loggedIn">Logged in</div>
+                                    <div class="topbar-user-role" data-i18n="layout.user.online">Online</div>
                                 </div>
                                 <i class="bi bi-chevron-down topbar-user-chevron"></i>
                             </button>
                             <div class="topbar-user-dropdown" id="topbar-user-dropdown">
                                 <div class="topbar-user-dropdown-header">
-                                    <div class="topbar-user-dropdown-name" id="topbar-dropdown-username" data-i18n="layout.user.loggedIn">已登录</div>
+                                    <div class="topbar-user-dropdown-name" id="topbar-dropdown-username" data-i18n="layout.user.loggedIn">Logged in</div>
                                     <div class="topbar-user-dropdown-email">YARP Administrator</div>
                                 </div>
                                 <div class="topbar-user-dropdown-divider"></div>
                                 <a class="topbar-user-dropdown-item danger" href="#" onclick="dashboardLogout();return false;">
                                     <i class="bi bi-box-arrow-right"></i>
-                                    <span data-i18n="layout.logout">@(isEn ? "Logout" : "退出登录")</span>
+                                    <span data-i18n="layout.logout">@("Logout")</span>
                                 </a>
                             </div>
                         </div>
@@ -5240,7 +5225,7 @@
                 <span>@($"Aneiang.Yarp v{typeof(LogEntry).Assembly.GetName().Version} · © 2024-2026")</span>
                 <span>
                     <span class="pulse-dot me-1"></span>
-                    @((ViewBag.Locale as string) == "en-US" ? "System Running" : "系统运行中")
+                    @("System Running")
                 </span>
             </div>
         }
@@ -5251,25 +5236,29 @@
         var CURRENT_LOCALE = '@ViewBag.Locale';
         function __(key) { return I18N[key] || key; }
 
+        @{
+            var keycloakSso = Context.RequestServices.GetService(typeof(Aneiang.Yarp.Iam.IamManagementAuthorization)) is not null;
+            var csrfToken = keycloakSso
+                ? ((Microsoft.AspNetCore.Antiforgery.IAntiforgery)Context.RequestServices.GetService(typeof(Microsoft.AspNetCore.Antiforgery.IAntiforgery))!).GetAndStoreTokens(Context).RequestToken
+                : null;
+        }
         // Dashboard page config
         window.__dashboard = {
             routePrefix: '@ViewBag.DashboardRoutePrefix',
-            basePath: '/@ViewBag.DashboardRoutePrefix',
+            basePath: '@Context.Request.PathBase/@ViewBag.DashboardRoutePrefix',
+            sso: @(keycloakSso ? "true" : "false"),
+            csrfToken: @Json.Serialize(csrfToken),
+            username: @Json.Serialize(Context.User.FindFirst("preferred_username")?.Value ?? Context.User.FindFirst("sub")?.Value),
             currentPage: '@ViewBag.CurrentPage',
             locale: '@ViewBag.Locale',
             I18N: I18N,
             CURRENT_LOCALE: CURRENT_LOCALE
         };
+        if (window.__dashboard.sso) localStorage.removeItem('dashboard_token');
 
         // DashboardApp - module namespace for backward compatibility
         window.DashboardApp = window.DashboardApp || { version: '2.3.0', modules: {} };
         window.DashboardApp.registerModule = function(name, module) { this.modules[name] = module; };
-        function switchLocale() {
-            var next = CURRENT_LOCALE === 'en-US' ? 'zh-CN' : 'en-US';
-            document.cookie = 'dashboard_locale=' + next + ';path=/;max-age=' + (365*86400);
-            localStorage.setItem('dashboard_locale', next);
-            location.reload();
-        }
 
         /* Show plugin config hint banner when data is empty */
         function showPluginHint(hintId) {
@@ -5306,6 +5295,19 @@
         });
         function dashboardLogout() {
             DashboardModals.showConfirm(__('layout.user.logoutConfirm'), function() {
+                if (window.__dashboard.sso) {
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = window.__dashboard.basePath + '/logout';
+                    const token = document.createElement('input');
+                    token.type = 'hidden';
+                    token.name = '__RequestVerificationToken';
+                    token.value = window.__dashboard.csrfToken;
+                    form.append(token);
+                    document.body.append(form);
+                    form.submit();
+                    return;
+                }
                 fetch('/' + '@ViewBag.DashboardRoutePrefix' + '/logout', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
@@ -5324,6 +5326,7 @@
             });
         }
         function getJwtUsername() {
+            if (window.__dashboard.sso) return window.__dashboard.username;
             var token = localStorage.getItem('dashboard_token');
             if (!token) return null;
             try {
@@ -5362,8 +5365,8 @@
             if (main) main.classList.toggle('main-collapsed', collapsed);
             var btn = document.getElementById('sidebar-collapse-btn');
             if (btn) {
-                var tip = collapsed ? (window.I18N && I18N['layout.sidebar.expand'] ? I18N['layout.sidebar.expand'] : '展开侧栏')
-                                    : (window.I18N && I18N['layout.sidebar.collapse'] ? I18N['layout.sidebar.collapse'] : '收起侧栏');
+                var tip = collapsed ? (window.I18N && I18N['layout.sidebar.expand'] ? I18N['layout.sidebar.expand'] : 'Expand sidebar')
+                                    : (window.I18N && I18N['layout.sidebar.collapse'] ? I18N['layout.sidebar.collapse'] : 'Collapse sidebar');
                 btn.title = tip;
                 btn.setAttribute('aria-label', tip);
             }
@@ -5496,7 +5499,7 @@
         });
     </script>
     <script src="/_content/Aneiang.Yarp.Dashboard/lib/bootstrap/js/bootstrap.bundle.min.js"></script>
-    
+
     @{
         var v = typeof(LogEntry).Assembly.GetName().Version?.ToString() ?? DateTime.Now.Ticks.ToString();
     }

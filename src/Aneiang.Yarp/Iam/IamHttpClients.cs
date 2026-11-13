@@ -24,7 +24,7 @@ public sealed class IamServiceTokenProvider(IHttpClientFactory clients, IOptions
         try
         {
             if (_token is not null && _expiresAt > clock.GetUtcNow()) return _token;
-            if (settings.InternalTokenEndpoint?.Scheme != "https" || string.IsNullOrWhiteSpace(settings.InternalClientId)
+            if (!IamTransport.Allows(settings.InternalTokenEndpoint, settings.AllowLocalHttp) || string.IsNullOrWhiteSpace(settings.InternalClientId)
                 || string.IsNullOrWhiteSpace(settings.InternalClientSecret)) throw new IamContractException("internal_identity_unconfigured");
             using var content = new FormUrlEncodedContent(new Dictionary<string, string>
             {

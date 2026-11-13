@@ -128,9 +128,12 @@ internal sealed class DocumentationGate(AneiangOpenApiOptions options, YarpOpenA
             options.IsAvailableOnEndpoint?.Invoke(context) == false)
         { context.Response.StatusCode = 404; return; }
 
-        var allowed = environment.IsDevelopment() && options.AllowAnonymousInDevelopment;
-        if (!allowed && options.AuthorizeRequest != null) allowed = await options.AuthorizeRequest(context);
-        if (!allowed && options.AuthorizationPolicy is { Length: > 0 } policy)
+        var management = context.RequestServices.GetService<Aneiang.Yarp.Iam.IamManagementAuthorization>();
+        var allowed = management is null
+            ? environment.IsDevelopment() && options.AllowAnonymousInDevelopment
+            : await management.AuthorizeAsync(context, service: false) == 200;
+        if (management is null && !allowed && options.AuthorizeRequest != null) allowed = await options.AuthorizeRequest(context);
+        if (management is null && !allowed && options.AuthorizationPolicy is { Length: > 0 } policy)
         {
             var authorization = context.RequestServices.GetService<IAuthorizationService>();
             var policies = context.RequestServices.GetService<IAuthorizationPolicyProvider>();

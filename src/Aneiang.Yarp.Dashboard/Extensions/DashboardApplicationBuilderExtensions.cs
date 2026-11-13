@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Yarp.ReverseProxy.Model;
 
 namespace Aneiang.Yarp.Dashboard.Extensions;
 
@@ -99,6 +100,9 @@ public static class DashboardApplicationBuilderExtensions
 
         var dashboardActive = mode != DeploymentMode.ProxyOnly;
         var proxyActive = mode != DeploymentMode.DashboardOnly;
+        var management = app.ApplicationServices.GetService<IamManagementAuthorization>();
+        var dashOpts = app.ApplicationServices.GetService<IOptions<DashboardOptions>>()?.Value;
+        var routePrefix = (dashOpts?.RoutePrefix ?? "apigateway").Trim('/');
 
         // CORS middleware must appear after UseRouting() but before endpoint execution.
         // YARP routes may carry CorsPolicy metadata (set via appsettings or Dashboard),
@@ -124,6 +128,31 @@ public static class DashboardApplicationBuilderExtensions
             UseDeploymentMiddlewareIfAvailable(app);
         }
 
+        if (management is not null)
+        {
+            app.Use(async (context, next) =>
+            {
+                var path = context.Request.Path;
+                if (path.StartsWithSegments($"/{routePrefix}/hubs"))
+                {
+                    // Cross-origin browser connections must not inherit a dashboard session.
+                    var origin = context.Request.Headers.Origin.ToString();
+                    if (origin.Length != 0 && !origin.Equals($"{context.Request.Scheme}://{context.Request.Host}", StringComparison.OrdinalIgnoreCase))
+                    {
+                        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                        return;
+                    }
+                    var status = await management.AuthorizeAsync(context, service: false);
+                    if (status != StatusCodes.Status200OK)
+                    {
+                        context.Response.StatusCode = status;
+                        return;
+                    }
+                }
+                await next(context);
+            });
+        }
+
         if (dashboardActive || proxyActive)
         {
             app.UseResponseCompression();
@@ -134,16 +163,13 @@ public static class DashboardApplicationBuilderExtensions
             app.UseStaticFiles();
         }
 
+        var iamEnabled = app.ApplicationServices.GetService<IamGatewayMarker>() is not null;
         if (autoUseMiddleware)
         {
-            app.Use((context, next) => context.RequestServices
-                .GetRequiredService<PluginRuntimeDomainManager>()
-                .InvokeMiddlewareAsync(context, next));
+            app.Use((context, next) => iamEnabled && proxyActive && context.GetEndpoint()?.Metadata.GetMetadata<RouteModel>() is not null
+                ? next(context)
+                : context.RequestServices.GetRequiredService<PluginRuntimeDomainManager>().InvokeMiddlewareAsync(context, next));
         }
-
-        // Resolve DashboardOptions for route prefix (used by Hub mappings below)
-        var dashOpts = app.ApplicationServices.GetService<IOptions<DashboardOptions>>()?.Value;
-        var routePrefix = (dashOpts?.RoutePrefix ?? "apigateway").Trim('/');
 
         if (app is IEndpointRouteBuilder endpoints)
         {
@@ -170,8 +196,8 @@ public static class DashboardApplicationBuilderExtensions
                     }
                 });
 
-                endpoints.MapHub<TrafficHub>($"/{routePrefix}/hubs/traffic");
-                endpoints.MapHub<OverviewHub>($"/{routePrefix}/hubs/overview");
+                endpoints.MapHub<TrafficHub>($"/{routePrefix}/hubs/traffic", options => options.CloseOnAuthenticationExpiration = true);
+                endpoints.MapHub<OverviewHub>($"/{routePrefix}/hubs/overview", options => options.CloseOnAuthenticationExpiration = true);
             }
 
             if (proxyActive)
@@ -180,9 +206,23 @@ public static class DashboardApplicationBuilderExtensions
                 {
                     // Mandatory IAM PEP is deliberately outside Plugin Center and runs before
                     // transforms/plugins. Its service marker is registered only for IAM-enabled hosts.
-                    if (app.ApplicationServices.GetService<IamGatewayMarker>() is not null)
+                    if (iamEnabled)
                     {
                         proxyPipeline.UseAneiangIamGateway();
+                        if (management is not null)
+                            proxyPipeline.Use((context, next) =>
+                            {
+                                var request = context.Request;
+                                request.Headers.Remove(DashboardSsoExtensions.CsrfHeader);
+                                var cookies = request.Headers.Cookie.ToString().Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                                    .Where(cookie => !IsDashboardCookie(cookie)).ToArray();
+                                if (cookies.Length == 0) request.Headers.Remove("Cookie");
+                                else request.Headers.Cookie = string.Join("; ", cookies);
+                                return next(context);
+                            });
+                        if (autoUseMiddleware)
+                            proxyPipeline.Use((context, next) => context.RequestServices
+                                .GetRequiredService<PluginRuntimeDomainManager>().InvokeMiddlewareAsync(context, next));
                     }
                     if (autoUseMiddleware && useOptions.UseBuiltInProxyPipeline)
                     {
@@ -197,6 +237,15 @@ public static class DashboardApplicationBuilderExtensions
         }
 
         return app;
+    }
+
+    private static bool IsDashboardCookie(string cookie)
+    {
+        var name = cookie.Split('=', 2)[0].Trim();
+        return name.StartsWith(IamManagementAuthorization.BrowserCookieName, StringComparison.Ordinal)
+            || name.StartsWith(IamManagementAuthorization.CsrfCookieName, StringComparison.Ordinal)
+            || name.StartsWith(IamManagementAuthorization.LocalBrowserCookieName, StringComparison.Ordinal)
+            || name == "dashboard_token";
     }
 
     private static void UseDeploymentMiddlewareIfAvailable(IApplicationBuilder app)

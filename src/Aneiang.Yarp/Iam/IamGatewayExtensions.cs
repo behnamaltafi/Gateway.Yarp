@@ -15,9 +15,13 @@ public sealed class IamGatewayMarker;
 public static class IamGatewayExtensions
 {
     public static IServiceCollection AddAneiangIamGateway(this IServiceCollection services, IConfiguration configuration, Action<IamGatewayOptions>? configure = null)
+        => AddAneiangIamGateway(services, configuration, false, configure);
+
+    public static IServiceCollection AddAneiangIamGateway(this IServiceCollection services, IConfiguration configuration, bool allowLocalHttp, Action<IamGatewayOptions>? configure = null)
     {
         services.AddOptions<IamGatewayOptions>().Bind(configuration.GetSection(IamGatewayOptions.SectionName));
         if (configure is not null) services.Configure(configure);
+        services.Configure<IamGatewayOptions>(options => options.AllowLocalHttp = allowLocalHttp);
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<IamGatewayOptions>, IamGatewayOptionsValidator>());
         services.AddOptions<IamGatewayOptions>().ValidateOnStart();
         services.TryAddSingleton(TimeProvider.System);
@@ -43,7 +47,7 @@ public static class IamGatewayExtensions
             {
                 var options = configured.Value;
                 jwt.Authority = string.IsNullOrWhiteSpace(options.Authority) ? null : options.Authority;
-                jwt.RequireHttpsMetadata = true;
+                jwt.RequireHttpsMetadata = !options.AllowLocalHttp;
                 jwt.MapInboundClaims = false;
                 jwt.IncludeErrorDetails = false;
                 jwt.Events = new JwtBearerEvents
@@ -76,7 +80,7 @@ public static class IamGatewayExtensions
             {
                 if (context.Resource is not HttpContext http) return false;
                 var settings = http.RequestServices.GetRequiredService<IOptions<IamGatewayOptions>>().Value;
-                return http.Request.IsHttps
+                return IamTransport.Allows(http, settings.AllowLocalHttp)
                     && context.User.FindAll("sub").Count() == 1 && settings.ManifestExportSubjects.Contains(context.User.FindFirst("sub")?.Value, StringComparer.Ordinal)
                     && context.User.FindAll("aud").Any(c => c.Value == settings.ManifestExportAudience)
                     && settings.ManifestExportRemoteAddresses.Any(v => IPAddress.TryParse(v, out var ip)

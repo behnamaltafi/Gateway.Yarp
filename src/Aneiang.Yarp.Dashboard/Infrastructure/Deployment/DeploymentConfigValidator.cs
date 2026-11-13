@@ -2,6 +2,7 @@ using Aneiang.Yarp.Dashboard.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Aneiang.Yarp.Iam;
 
 namespace Aneiang.Yarp.Dashboard.Infrastructure.Deployment;
 
@@ -15,11 +16,13 @@ public class DeploymentConfigValidator : IHostedService
 {
     private readonly IConfiguration _config;
     private readonly ILogger<DeploymentConfigValidator> _logger;
+    private readonly IamManagementAuthorization? _management;
 
-    public DeploymentConfigValidator(IConfiguration config, ILogger<DeploymentConfigValidator> logger)
+    public DeploymentConfigValidator(IConfiguration config, ILogger<DeploymentConfigValidator> logger, IamManagementAuthorization? management = null)
     {
         _config = config;
         _logger = logger;
+        _management = management;
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -72,7 +75,7 @@ public class DeploymentConfigValidator : IHostedService
             else if (string.Equals(kvp.Value, "Dashboard", StringComparison.OrdinalIgnoreCase) && isPublic)
             {
                 warnings.Add($"SECURITY: Dashboard endpoint '{kvp.Key}' is publicly bound to {uri.Host}. Consider binding to 127.0.0.1.");
-                if (isProduction && dashboardOptions.Auth.AuthMode == DashboardAuthMode.None && dashboardOptions.Auth.AuthorizeRequest == null)
+                if (isProduction && _management is null && dashboardOptions.Auth.AuthMode == DashboardAuthMode.None && dashboardOptions.Auth.AuthorizeRequest == null)
                 {
                     errors.Add($"Dashboard endpoint '{kvp.Key}' is publicly bound ({uri.Host}) with AuthMode=None in Production. Enable Dashboard auth or bind to loopback.");
                 }

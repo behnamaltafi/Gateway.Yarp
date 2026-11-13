@@ -6,6 +6,10 @@ using Aneiang.Yarp.Dashboard.Modules.Dashboard.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Authentication;
+using Aneiang.Yarp.Iam;
+using Aneiang.Yarp.Dashboard.Extensions;
 
 namespace Aneiang.Yarp.Dashboard.Modules.Dashboard.Controllers;
 
@@ -16,7 +20,6 @@ public class DashboardAuthController : Controller
 {
     private readonly IDashboardAuthorizationService _authService;
 
-    private readonly string _defaultLocale;
     private readonly DashboardAuthMode _authMode;
     private readonly string? _jwtSecret;
     private readonly string? _jwtPassword;
@@ -39,7 +42,6 @@ public class DashboardAuthController : Controller
         _authService = authService;
 
         var opt = dashboardOptions.Value;
-        _defaultLocale = opt.Locale;
         _authMode = opt.Auth.AuthMode;
         _jwtSecret = opt.Auth.JwtSecret;
         _jwtPassword = opt.Auth.JwtPassword;
@@ -55,12 +57,12 @@ public class DashboardAuthController : Controller
     [HttpGet("login")]
     public IActionResult Login()
     {
+        if (HttpContext.RequestServices.GetService<IamManagementAuthorization>() is not null)
+            return Challenge(new AuthenticationProperties { RedirectUri = DashboardRoot }, DashboardSsoExtensions.OidcScheme);
+
         ViewBag.DashboardRoutePrefix = DashboardPagesController.RoutePrefix;
         ViewBag.AuthMode = _authMode;
-        var cookieLocale = Request.Cookies["dashboard_locale"];
-        ViewBag.Locale = !string.IsNullOrEmpty(cookieLocale)
-            ? (cookieLocale == "en-US" ? "en-US" : "zh-CN")
-            : (_defaultLocale == "en-US" ? "en-US" : "zh-CN");
+        ViewBag.Locale = "en-US";
         ViewBag.AllI18nJson = DashboardI18n.AllAsJson(ViewBag.Locale);
         return View();
     }
@@ -117,8 +119,18 @@ public class DashboardAuthController : Controller
     public IActionResult Logout()
     {
         Response.Cookies.Delete("dashboard_token");
+        if (HttpContext.RequestServices.GetService<IamManagementAuthorization>() is not null)
+            return SignOut(new AuthenticationProperties { RedirectUri = DashboardRoot + "/signed-out" },
+                IamManagementAuthorization.BrowserScheme, DashboardSsoExtensions.OidcScheme);
         return Json(new { code = 200, message = "Logged out successfully" });
     }
+
+    [HttpGet("signed-out")]
+    public IActionResult SignedOut() => HttpContext.RequestServices.GetService<IamManagementAuthorization>() is not null
+        ? Content("Signed out.", "text/plain")
+        : NotFound();
+
+    private string DashboardRoot => Request.PathBase + "/" + DashboardPagesController.RoutePrefix;
 
     #endregion
 
@@ -216,7 +228,8 @@ public class DashboardAuthController : Controller
     public IActionResult GetAuthStatus()
     {
         var authModeDescription = _authService.GetAuthModeDescription();
-        var isAuthEnabled = _authMode != DashboardAuthMode.None;
+        var sso = HttpContext.RequestServices.GetService<IamManagementAuthorization>() is not null;
+        var isAuthEnabled = sso || _authMode != DashboardAuthMode.None;
 
         return Json(new
         {
@@ -224,9 +237,9 @@ public class DashboardAuthController : Controller
             data = new
             {
                 IsAuthEnabled = isAuthEnabled,
-                AuthMode = _authMode.ToString(),
-                AuthModeDescription = authModeDescription,
-                Locale = _defaultLocale
+                AuthMode = sso ? "KeycloakSso" : _authMode.ToString(),
+                AuthModeDescription = sso ? "Keycloak SSO" : authModeDescription,
+                Locale = "en-US"
             }
         });
     }

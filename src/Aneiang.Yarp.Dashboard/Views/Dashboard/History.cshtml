@@ -1,6 +1,6 @@
 @using Aneiang.Yarp.Plugin.ProxyLog.Models
 @{
-    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Configuration History" : "配置变更历史";
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Configuration History" : "Configuration Change History";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
 }
 
@@ -34,63 +34,63 @@
 </style>
 
 <div class="dash-page-head">
-    <h2 class="dash-page-head-title"><i class="bi bi-clock-history" style="color:#6366f1;"></i><span data-i18n="history.title">配置变更历史</span></h2>
+    <h2 class="dash-page-head-title"><i class="bi bi-clock-history" style="color:#6366f1;"></i><span data-i18n="history.title">Configuration Change History</span></h2>
     <div class="dash-page-head-actions">
         <button class="btn btn-sm btn-success" id="history-export-btn">
-            <i class="bi bi-download me-1"></i><span data-i18n="history.export">导出配置</span>
+            <i class="bi bi-download me-1"></i><span data-i18n="history.export">Export Config</span>
         </button>
         <button class="btn btn-sm btn-outline-success" id="history-import-btn">
-            <i class="bi bi-upload me-1"></i><span data-i18n="history.import">导入配置</span>
+            <i class="bi bi-upload me-1"></i><span data-i18n="history.import">Import</span>
         </button>
         <button class="btn btn-sm btn-primary" id="history-create-snapshot">
-            <i class="bi bi-plus-circle me-1"></i><span data-i18n="history.createSnapshot">创建快照</span>
+            <i class="bi bi-plus-circle me-1"></i><span data-i18n="history.createSnapshot">Create Snapshot</span>
         </button>
         <button class="btn btn-sm btn-outline-primary" id="history-refresh">
-            <i class="bi bi-arrow-clockwise me-1"></i><span data-i18n="history.refresh">刷新</span>
+            <i class="bi bi-arrow-clockwise me-1"></i><span data-i18n="history.refresh">Refresh</span>
         </button>
         <button class="btn btn-sm btn-outline-danger" id="history-clear-all">
-            <i class="bi bi-trash3 me-1"></i><span data-i18n="history.clearAll">清空历史</span>
+            <i class="bi bi-trash3 me-1"></i><span data-i18n="history.clearAll">Clear History</span>
         </button>
     </div>
 </div>
 
 <div class="pc-meta-line mb-3">
-    <span class="pc-meta-item"><i class="bi bi-clock-history"></i><span class="pc-meta-num" id="history-stat-total">--</span><span class="pc-meta-label" data-i18n="history.stat.total">快照总数</span></span>
-    <span class="pc-meta-item"><i class="bi bi-lightning"></i><span class="pc-meta-num" id="history-stat-latest">--</span><span class="pc-meta-label" data-i18n="history.stat.latest">最近变更</span></span>
-    <span class="pc-meta-item"><i class="bi bi-signpost-split"></i><span class="pc-meta-num" id="history-stat-routes">--</span><span class="pc-meta-label" data-i18n="history.stat.routes">当前路由</span></span>
-    <span class="pc-meta-item"><i class="bi bi-diagram-3"></i><span class="pc-meta-num" id="history-stat-clusters">--</span><span class="pc-meta-label" data-i18n="history.stat.clusters">当前集群</span></span>
+    <span class="pc-meta-item"><i class="bi bi-clock-history"></i><span class="pc-meta-num" id="history-stat-total">--</span><span class="pc-meta-label" data-i18n="history.stat.total">Total Snapshots</span></span>
+    <span class="pc-meta-item"><i class="bi bi-lightning"></i><span class="pc-meta-num" id="history-stat-latest">--</span><span class="pc-meta-label" data-i18n="history.stat.latest">Latest Change</span></span>
+    <span class="pc-meta-item"><i class="bi bi-signpost-split"></i><span class="pc-meta-num" id="history-stat-routes">--</span><span class="pc-meta-label" data-i18n="history.stat.routes">Current Routes</span></span>
+    <span class="pc-meta-item"><i class="bi bi-diagram-3"></i><span class="pc-meta-num" id="history-stat-clusters">--</span><span class="pc-meta-label" data-i18n="history.stat.clusters">Current Clusters</span></span>
 </div>
 
 <div class="history-filter-card mb-4">
     <div class="row g-3 align-items-end">
         <div class="col-md-6 col-xl-5">
-            <label class="form-label small text-muted" data-i18n="history.search.label">搜索版本、描述或客户端 IP</label>
+            <label class="form-label small text-muted" data-i18n="history.search.label">Search version, description or client IP</label>
             <div class="input-group">
                 <span class="input-group-text"><i class="bi bi-search"></i></span>
-                <input id="history-search" class="form-control" data-i18n-placeholder="history.search.placeholder" placeholder="输入关键字..." autocomplete="off" />
+                <input id="history-search" class="form-control" data-i18n-placeholder="history.search.placeholder" placeholder="Enter keyword..." autocomplete="off" />
             </div>
         </div>
         <div class="col-md-3 col-xl-3">
-            <label class="form-label small text-muted" data-i18n="history.type.label">变更类型</label>
+            <label class="form-label small text-muted" data-i18n="history.type.label">Change Type</label>
             <select id="history-type-filter" class="form-select">
-                <option value="" data-i18n="history.type.all">全部类型</option>
-                <option value="manual" data-i18n="history.type.manual">手动快照</option>
-                <option value="update" data-i18n="history.type.update">保存/更新</option>
-                <option value="delete" data-i18n="history.type.delete">删除</option>
-                <option value="rename" data-i18n="history.type.rename">重命名</option>
-                <option value="import" data-i18n="history.type.import">导入</option>
-                <option value="rollback" data-i18n="history.type.rollback">回滚</option>
+                <option value="" data-i18n="history.type.all">All Types</option>
+                <option value="manual" data-i18n="history.type.manual">Manual Snapshot</option>
+                <option value="update" data-i18n="history.type.update">Save/Update</option>
+                <option value="delete" data-i18n="history.type.delete">Delete</option>
+                <option value="rename" data-i18n="history.type.rename">Rename</option>
+                <option value="import" data-i18n="history.type.import">Import</option>
+                <option value="rollback" data-i18n="history.type.rollback">Rollback</option>
             </select>
         </div>
         <div class="col-md-3 col-xl-2">
-            <label class="form-label small text-muted" data-i18n="history.sort.label">排序</label>
+            <label class="form-label small text-muted" data-i18n="history.sort.label">Sort</label>
             <select id="history-sort" class="form-select">
-                <option value="desc" data-i18n="history.sort.desc">最新优先</option>
-                <option value="asc" data-i18n="history.sort.asc">最早优先</option>
+                <option value="desc" data-i18n="history.sort.desc">Newest First</option>
+                <option value="asc" data-i18n="history.sort.asc">Oldest First</option>
             </select>
         </div>
         <div class="col-xl-2">
-            <button id="history-clear-filter" class="btn btn-outline-secondary w-100"><i class="bi bi-x-circle me-1"></i><span data-i18n="history.clearFilter">清空</span></button>
+            <button id="history-clear-filter" class="btn btn-outline-secondary w-100"><i class="bi bi-x-circle me-1"></i><span data-i18n="history.clearFilter">Clear</span></button>
         </div>
     </div>
 </div>
@@ -100,10 +100,10 @@
     <aside class="history-side">
         <div id="history-detail" class="history-detail-card">
             <div class="history-detail-header">
-                <i class="bi bi-info-circle me-1 text-muted"></i><span data-i18n="history.detail.select">选择一个快照</span>
+                <i class="bi bi-info-circle me-1 text-muted"></i><span data-i18n="history.detail.select">Select a snapshot</span>
             </div>
             <div class="history-detail-body text-muted" data-i18n="history.detail.empty">
-                点击左侧时间线中的任意快照，查看版本号、规模统计、来源 IP，并执行复制、差异对比或回滚。
+                Select a snapshot in the timeline to see its version, counts, and source IP, or to copy, compare, or roll it back.
             </div>
         </div>
     </aside>
@@ -117,19 +117,19 @@
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title"><i class="bi bi-upload me-2"></i><span data-i18n="history.importPreview">导入配置预览</span></h5>
+        <h5 class="modal-title"><i class="bi bi-upload me-2"></i><span data-i18n="history.importPreview">Import Configuration Preview</span></h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
         <div id="import-summary" class="mb-3"></div>
         <div class="alert alert-warning">
           <i class="bi bi-exclamation-triangle me-1"></i>
-          <span data-i18n="history.importWarning">导入将替换当前所有路由和集群配置，请确认后再操作。</span>
+          <span data-i18n="history.importWarning">Importing will replace all current routes and clusters. Please confirm before proceeding.</span>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="common.cancel">取消</button>
-        <button type="button" class="btn btn-success" id="import-confirm-btn"><i class="bi bi-check-lg me-1"></i><span data-i18n="history.importConfirm">确认导入</span></button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="common.cancel">Cancel</button>
+        <button type="button" class="btn btn-success" id="import-confirm-btn"><i class="bi bi-check-lg me-1"></i><span data-i18n="history.importConfirm">Confirm Import</span></button>
       </div>
     </div>
   </div>
@@ -166,7 +166,7 @@
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>' + (window.__ ? __('history.exporting') : 'Exporting...');
             try {
-                var resp = await fetch('/api/config/export');
+                var resp = await fetch(window.__dashboard.basePath + '/api/config/export');
                 var json = await resp.json();
                 var blob = new Blob([JSON.stringify(json.data, null, 2)], { type: 'application/json' });
                 var url = URL.createObjectURL(blob);
@@ -180,7 +180,7 @@
                 if (window.DashboardModals) DashboardModals.showError((window.__ ? __('history.exportFailed') : 'Export failed') + ': ' + e.message);
             } finally {
                 btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-download me-1"></i>' + (window.__ ? __('history.export') : '导出配置');
+                btn.innerHTML = '<i class="bi bi-download me-1"></i>' + (window.__ ? __('history.export') : 'Export Config');
             }
         });
     })();
@@ -208,12 +208,11 @@
                     var routes = (d.routes || []).length;
                     var clusters = (d.clusters || []).length;
                     var bindings = (d.pluginBindings || []).length;
-                    var isEn = (window.__ && document.cookie.indexOf('dashboard_locale=en-US') >= 0);
                     summaryDiv.innerHTML =
                         '<div class="d-flex justify-content-around text-center">' +
-                        '<div><div class="h3 mb-0 text-primary">' + routes + '</div><div class="small text-muted">' + (isEn ? 'Routes' : '路由') + '</div></div>' +
-                        '<div><div class="h3 mb-0 text-success">' + clusters + '</div><div class="small text-muted">' + (isEn ? 'Clusters' : '集群') + '</div></div>' +
-                        '<div><div class="h3 mb-0 text-info">' + bindings + '</div><div class="small text-muted">' + (isEn ? 'Bindings' : '绑定') + '</div></div>' +
+                        '<div><div class="h3 mb-0 text-primary">' + routes + '</div><div class="small text-muted">' + ('Routes') + '</div></div>' +
+                        '<div><div class="h3 mb-0 text-success">' + clusters + '</div><div class="small text-muted">' + ('Clusters') + '</div></div>' +
+                        '<div><div class="h3 mb-0 text-info">' + bindings + '</div><div class="small text-muted">' + ('Bindings') + '</div></div>' +
                         '</div>';
                     pendingData = data;
                     new bootstrap.Modal(previewModal).show();
@@ -230,9 +229,9 @@
             confirmBtn.disabled = true;
             confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>' + (window.__ ? __('common.importing') : 'Importing...');
             try {
-                var resp = await fetch('/api/config/import', {
+                var resp = await fetch(window.__dashboard.basePath + '/api/config/import', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...window.DashboardApi.csrfHeaders() },
                     body: JSON.stringify(pendingData)
                 });
                 var result = await resp.json();
@@ -247,7 +246,7 @@
                 if (window.DashboardModals) DashboardModals.showError((window.__ ? __('history.importFailed') : 'Import failed') + ': ' + e.message);
             } finally {
                 confirmBtn.disabled = false;
-                confirmBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>' + (window.__ ? __('history.importConfirm') : '确认导入');
+                confirmBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>' + (window.__ ? __('history.importConfirm') : 'Confirm Import');
                 pendingData = null;
             }
         });

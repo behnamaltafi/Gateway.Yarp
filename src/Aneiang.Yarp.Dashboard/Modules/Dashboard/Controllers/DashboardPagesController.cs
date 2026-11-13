@@ -27,7 +27,6 @@ public class DashboardPagesController : Controller
     private readonly DeploymentOptions _deploymentOptions;
 
     // Cached option values
-    private readonly string _defaultLocale;
     private readonly string _authMode;
 
     /// <summary>
@@ -49,7 +48,6 @@ public class DashboardPagesController : Controller
         _storageOptions = storageOptions.Value;
         _deploymentOptions = deploymentOptions.Value;
 
-        _defaultLocale = dashboardOptions.Value.Locale;
         _authMode = dashboardOptions.Value.Auth.AuthMode.ToString();
     }
 
@@ -59,20 +57,9 @@ public class DashboardPagesController : Controller
     private void SetCommonViewBag(string? currentPage = null)
     {
         ViewBag.DashboardRoutePrefix = RoutePrefix;
-        ViewBag.Locale = ResolveLocale();
+        ViewBag.Locale = "en-US";
         ViewBag.AllI18nJson = DashboardI18n.AllAsJson(ViewBag.Locale);
         ViewBag.CurrentPage = currentPage ?? "overview";
-    }
-
-    /// <summary>
-    /// Resolves the locale from cookie or default.
-    /// </summary>
-    private string ResolveLocale()
-    {
-        var cookieLocale = Request.Cookies["dashboard_locale"];
-        if (!string.IsNullOrEmpty(cookieLocale))
-            return cookieLocale == "en-US" ? "en-US" : "zh-CN";
-        return _defaultLocale == "en-US" ? "en-US" : "zh-CN";
     }
 
     #region View pages
@@ -146,8 +133,9 @@ public class DashboardPagesController : Controller
             {
                 version = _infoQuery.GetInfo().Version,
                 routePrefix = RoutePrefix,
-                authMode = _authMode,
-                locale = _defaultLocale,
+                authMode = HttpContext.RequestServices.GetService(typeof(Aneiang.Yarp.Iam.IamManagementAuthorization)) is not null
+                    ? "KeycloakSso" : _authMode,
+                locale = "en-US",
                 databaseFile = dbPath,
                 databaseSizeBytes = dbSize,
                 deployment = new

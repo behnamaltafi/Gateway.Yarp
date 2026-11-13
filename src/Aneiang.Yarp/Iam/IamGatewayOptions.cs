@@ -4,6 +4,7 @@ public sealed class IamGatewayOptions
 {
     public const string SectionName = "Gateway:Iam";
     public bool Enabled { get; set; }
+    internal bool AllowLocalHttp { get; set; }
     public string Authority { get; set; } = string.Empty;
     public string Issuer { get; set; } = string.Empty;
     public string Audience { get; set; } = string.Empty;
@@ -37,6 +38,9 @@ internal sealed class IamGatewayOptionsValidator : Microsoft.Extensions.Options.
         if (!value.Enabled) return Microsoft.Extensions.Options.ValidateOptionsResult.Success;
         var errors = new List<string>();
         if (string.IsNullOrWhiteSpace(value.Authority) && string.IsNullOrWhiteSpace(value.Issuer)) errors.Add("Authority or Issuer is required.");
+        if (value.AllowLocalHttp && !string.IsNullOrWhiteSpace(value.Authority)
+            && (!Uri.TryCreate(value.Authority, UriKind.Absolute, out var authority) || !IamTransport.Allows(authority, true)))
+            errors.Add("Local IAM authority requires HTTPS or loopback HTTP.");
         if (string.IsNullOrWhiteSpace(value.Audience)) errors.Add("Audience is required.");
         if (value.PolicyBundleEndpoint is null) errors.Add("PolicyBundleEndpoint is required.");
         if (value.EntitlementEndpoint is null) errors.Add("EntitlementEndpoint is required.");
@@ -45,7 +49,8 @@ internal sealed class IamGatewayOptionsValidator : Microsoft.Extensions.Options.
         if (value.EntitlementCacheSize is < 1 or > 1_000_000) errors.Add("EntitlementCacheSize is invalid.");
         if (value.MaxConcurrentEntitlementFetches is < 1 or > 4096) errors.Add("MaxConcurrentEntitlementFetches is invalid.");
         if (value.MaxPendingEntitlementFetches is < 1 or > 4096) errors.Add("MaxPendingEntitlementFetches is invalid.");
-        if (value.PolicyBundleEndpoint?.Scheme != "https" || value.EntitlementEndpoint?.Scheme != "https") errors.Add("IAM endpoints require direct HTTPS.");
+        if (!IamTransport.Allows(value.PolicyBundleEndpoint, value.AllowLocalHttp)
+            || !IamTransport.Allows(value.EntitlementEndpoint, value.AllowLocalHttp)) errors.Add("IAM endpoints require HTTPS or explicit local loopback HTTP.");
         if (value.IamTimeout <= TimeSpan.Zero || value.IamTimeout > TimeSpan.FromSeconds(30)) errors.Add("IAM timeout is invalid.");
         if (value.BundleRefreshInterval <= TimeSpan.Zero || value.BundleRefreshInterval > TimeSpan.FromHours(12)) errors.Add("Bundle refresh interval is invalid.");
         return errors.Count == 0 ? Microsoft.Extensions.Options.ValidateOptionsResult.Success : Microsoft.Extensions.Options.ValidateOptionsResult.Fail(errors);

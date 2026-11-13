@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
+using Aneiang.Yarp.Iam;
 
 namespace Aneiang.Yarp.Dashboard.Infrastructure.Auth;
 
@@ -25,6 +27,9 @@ public sealed class DashboardAuthorizationService : IDashboardAuthorizationServi
     /// <inheritdoc />
     public async Task<bool> IsAuthorizedAsync(HttpContext context)
     {
+        if (context.RequestServices?.GetService<IamManagementAuthorization>() is { } management)
+            return await management.AuthorizeAsync(context, service: false) == 200;
+
         // Priority 1: Custom delegate (highest)
         if (_options.Auth.AuthorizeRequest != null)
         {
