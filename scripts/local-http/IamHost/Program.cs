@@ -78,7 +78,7 @@ sealed class LocalControllers : IApplicationFeatureProvider<ControllerFeature>
     public void PopulateFeature(IEnumerable<ApplicationPart> parts, ControllerFeature feature)
     {
         var allowed = new HashSet<string> { "AuthorizationAdminController", "EntitlementsController",
-            "OperationCatalogController", "PoliciesController", "NavigationController", "InternalPolicyBundlesController" };
+            "OperationCatalogController", "PoliciesController", "NavigationController", "MeController", "InternalPolicyBundlesController" };
         foreach (var type in feature.Controllers.Where(type => !allowed.Contains(type.Name)).ToArray())
             feature.Controllers.Remove(type);
     }
