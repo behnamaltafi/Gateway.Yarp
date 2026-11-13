@@ -6,6 +6,8 @@ using Microsoft.Extensions.Options;
 using Serilog;
 using Aneiang.Yarp.OpenApi;
 using Aneiang.Yarp.Iam;
+using System.Diagnostics;
+using System.Text.Json;
 
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
@@ -25,13 +27,39 @@ try
     
     var builder = WebApplication.CreateBuilder(args);
     var localSettings = Environment.GetEnvironmentVariable("IAM_LOCAL_SETTINGS");
+    var visualStudioProfile = Environment.GetEnvironmentVariable("GATEWAY_VISUAL_STUDIO_LOCAL");
+    var allowLocalHttp = builder.Environment.IsDevelopment() && visualStudioProfile is "http" or "http-direct";
+    if (builder.Environment.IsDevelopment() && visualStudioProfile is "1" or "http")
+    {
+        var workspace = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", ".."));
+        var local = Path.Combine(workspace, ".gapcode", allowLocalHttp ? "sso-http" : "sso-local");
+        localSettings = Path.Combine(local, "gateway.json");
+        using var settings = JsonDocument.Parse(File.ReadAllText(Path.Combine(local, "settings.json")));
+        Environment.SetEnvironmentVariable("GATEWAY_DASHBOARD_OIDC_CLIENT_SECRET",
+            settings.RootElement.GetProperty("dashboardSecret").GetString());
+        var dependencies = new ProcessStartInfo("pwsh") { UseShellExecute = false, CreateNoWindow = true };
+        foreach (var argument in new[] { "-NoProfile", "-File", Path.Combine(workspace, "Start-LocalGateway.ps1"), "-DependenciesOnly" })
+            dependencies.ArgumentList.Add(argument);
+        if (allowLocalHttp) dependencies.ArgumentList.Add("-Http");
+        using var startup = Process.Start(dependencies) ?? throw new InvalidOperationException("Could not start local IAM and Keycloak.");
+        await startup.WaitForExitAsync();
+        if (startup.ExitCode != 0)
+            throw new InvalidOperationException("Local IAM or Keycloak did not start. Check the launcher output and Docker Desktop.");
+    }
     if (!string.IsNullOrWhiteSpace(localSettings))
     {
         builder.Configuration.Sources.Clear();
         builder.Configuration.AddJsonFile(localSettings, optional: false, reloadOnChange: false).AddEnvironmentVariables().AddCommandLine(args);
     }
-    var iamEnabled = builder.Configuration.GetValue<bool>("Gateway:Iam:Enabled");
-    if (iamEnabled) builder.Services.AddAneiangIamGateway(builder.Configuration);
+    if (!builder.Configuration.GetValue<bool>("Gateway:Dashboard:Sso:Enabled")
+        || !builder.Configuration.GetValue<bool>("Gateway:Iam:Enabled"))
+        throw new InvalidOperationException(
+            "SampleGateway requires Keycloak SSO and IAM in every environment. Set Gateway:Dashboard:Sso:Enabled and Gateway:Iam:Enabled to true and configure both integrations. See docs/gateway-keycloak-sso-migration.md.");
+    if (allowLocalHttp && builder.Configuration.GetSection("Kestrel:Endpoints").GetChildren().Any(endpoint =>
+        !Uri.TryCreate(endpoint["Url"], UriKind.Absolute, out var address) || !address.IsLoopback))
+        throw new InvalidOperationException("The local HTTP profile requires loopback listeners.");
+    builder.Services.AddAneiangIamGateway(builder.Configuration, allowLocalHttp);
+    builder.Services.AddAneiangDashboardSso(builder.Configuration, allowLocalHttp);
 
     // Replace default logger with Serilog
     builder.Host.UseSerilog();
@@ -47,7 +75,7 @@ try
     // Storage backend: host app is responsible for choosing the storage implementation
     builder.Services.AddAneiangStorage();
 
-    // Dashboard with JWT auth (DefaultJwt: username=admin, password from config)
+    // Dashboard with Keycloak SSO and IAM management authorization.
     builder.Services.AddAneiangYarpDashboard();
 
     // Multi-port / split / proxy-only deployment support (optional, backward compatible)
@@ -60,21 +88,22 @@ try
 
     var app = builder.Build();
     app.UseRouting();
-    if (iamEnabled) app.UseAuthentication();
+    app.UseAneiangDashboardSsoCallbacks();
+    app.UseAuthentication();
     app.UseCors();
-    if (iamEnabled) app.UseAuthorization();
+    app.UseAuthorization();
     app.UseAneiangOpenApi();
 
     // Register Dashboard middleware + MapReverseProxy (mode-aware).
     // Deployment-aware routing and health-check middleware are mounted automatically when deployment services are registered.
     app.UseAneiangYarpDashboard(new DashboardApplicationBuilderExtensions.DashboardUseOptions
     {
-        AutoUseAuthorization = !iamEnabled,
-        AutoUseCors = !iamEnabled
+        AutoUseAuthorization = false,
+        AutoUseCors = false
     });
 
     app.MapControllers();
-    if (iamEnabled) app.MapAneiangIamManifestExport();
+    app.MapAneiangIamManifestExport();
     app.MapAneiangYarpGrpc(); // gRPC GatewayRegistry service (HTTP/2)
 
     // Log startup summary
@@ -87,7 +116,7 @@ try
     foreach (var ep in depOptions.ResolvedEndpoints)
         Console.WriteLine($"  Endpoint:           {ep.EndpointName} → {ep.IpAddress}:{ep.Port} ({ep.Role})");
     Console.WriteLine("  Dashboard:          /aneiang");
-    Console.WriteLine("  Login:              /aneiang/login");
+    Console.WriteLine("  Login:              Keycloak SSO");
     Console.WriteLine("  Credentials:        configured outside source control");
     Console.WriteLine("  Health:             /health, /ready, /live");
     Console.WriteLine("  API documentation:  /swagger, /scalar (Dashboard authentication)");
@@ -105,9 +134,13 @@ try
         var dashboardEndpoint = depOptions.ResolvedEndpoints
             .FirstOrDefault(e => string.Equals(e.Role, "Dashboard", StringComparison.OrdinalIgnoreCase))
             ?? depOptions.ResolvedEndpoints.FirstOrDefault();
-        if (dashboardEndpoint != null)
+        if (dashboardEndpoint != null
+            && Uri.TryCreate(builder.Configuration[$"Kestrel:Endpoints:{dashboardEndpoint.EndpointName}:Url"], UriKind.Absolute, out var endpointUrl)
+            && endpointUrl.Scheme == Uri.UriSchemeHttps)
         {
-            var dashUrl = $"http://localhost:{dashboardEndpoint.Port}/aneiang/login";
+            var host = dashboardEndpoint.IsPubliclyBound ? "localhost" : endpointUrl.Host;
+            var prefix = app.Services.GetRequiredService<IOptions<Aneiang.Yarp.Dashboard.Infrastructure.DashboardOptions>>().Value.RoutePrefix.Trim('/');
+            var dashUrl = new UriBuilder(Uri.UriSchemeHttps, host, endpointUrl.Port, "/" + prefix).Uri.AbsoluteUri;
             var lifetime = app.Services.GetRequiredService<Microsoft.Extensions.Hosting.IHostApplicationLifetime>();
             lifetime.ApplicationStarted.Register(() =>
             {
@@ -135,6 +168,7 @@ try
 catch (Exception ex)
 {
     Log.Fatal(ex, "Gateway terminated unexpectedly");
+    Environment.ExitCode = 1;
 }
 finally
 {

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="IAM.Api"><HintPath>$(IamSource)/IAM.Api/bin/Debug/net10.0/IAM.Api.dll</HintPath></Reference>
+    <Reference Include="IAM.Application"><HintPath>$(IamSource)/IAM.Api/bin/Debug/net10.0/IAM.Application.dll</HintPath></Reference>
+    <Reference Include="IAM.Domain"><HintPath>$(IamSource)/IAM.Api/bin/Debug/net10.0/IAM.Domain.dll</HintPath></Reference>
+    <Reference Include="IAM.Infrastructure"><HintPath>$(IamSource)/IAM.Api/bin/Debug/net10.0/IAM.Infrastructure.dll</HintPath></Reference>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.12" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.12" /><PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.0" /><Reference Include="TATA.Common.Contracts"><HintPath>$(IamSource)/IAM.Api/bin/Debug/net10.0/TATA.Common.Contracts.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

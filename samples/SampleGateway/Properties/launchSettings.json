@@ -1,12 +1,24 @@
 {
   "profiles": {
+    "SampleGateway Local HTTP": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "launchUrl": "http://localhost:17465/aneiang",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "GATEWAY_VISUAL_STUDIO_LOCAL": "http",
+        "ASPNETCORE_AUTO_BROWSER": "0"
+      }
+    },
     "SampleGateway": {
       "commandName": "Project",
-      "launchBrowser": false,
+      "launchBrowser": true,
+      "launchUrl": "https://localhost:17455/aneiang",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
-      },
-      "useSSL": false
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "GATEWAY_VISUAL_STUDIO_LOCAL": "1",
+        "ASPNETCORE_AUTO_BROWSER": "0"
+      }
     }
   }
 }
