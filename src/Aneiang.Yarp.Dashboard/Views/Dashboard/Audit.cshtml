@@ -1,22 +1,22 @@
 @using Aneiang.Yarp.Plugin.ProxyLog.Models
 @{
-    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Audit Log" : "审计日志";
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Audit Log" : "Audit Log";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
 }
 
 <!-- Audit log page -->
 <div class="dash-page-head">
-    <h1 class="dash-page-head-title"><i class="bi bi-shield-check"></i><span data-i18n="audit.title">审计日志</span></h1>
+    <h1 class="dash-page-head-title"><i class="bi bi-shield-check"></i><span data-i18n="audit.title">Audit Log</span></h1>
     <div class="pc-panel-actions">
         <span class="plg-plugin-id audit-refresh-time" id="audit-refresh-time"></span>
-        <button class="pr-refresh-btn" onclick="window.AuditModule.loadAuditLogs()" title="刷新" data-i18n-title="index.btn.refresh"><i class="bi bi-arrow-clockwise"></i></button>
+        <button class="pr-refresh-btn" onclick="window.AuditModule.loadAuditLogs()" title="Refresh" data-i18n-title="index.btn.refresh"><i class="bi bi-arrow-clockwise"></i></button>
     </div>
 </div>
 <div class="pc-meta-line" id="audit-meta-line"></div>
 <div id="audit-content">
     <div class="loading-state">
         <div class="loading-spinner"></div>
-        <div class="loading-text" data-i18n="audit.loading">加载中...</div>
+        <div class="loading-text" data-i18n="audit.loading">Loading audit logs...</div>
     </div>
 </div>
 

@@ -1,15 +1,14 @@
 @{
     ViewData["Title"] = "500";
     Layout = null;
-    var isEn = (ViewBag.Locale as string) == "en-US";
     var prefix = ViewBag.DashboardRoutePrefix as string ?? "apigateway";
 }
 <!DOCTYPE html>
-<html lang="@(isEn ? "en" : "zh-CN")">
+<html lang="@("en")">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>500 - @(isEn ? "Server Error" : "服务器错误")</title>
+    <title>500 - @("Server Error")</title>
     <link rel="stylesheet" href="/_content/Aneiang.Yarp.Dashboard/css/bootstrap-icons.css" />
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -43,11 +42,11 @@
 <body>
     <div class="error-container">
         <div class="error-code">500</div>
-        <div class="error-title">@(isEn ? "Server Error" : "服务器错误")</div>
-        <div class="error-desc">@(isEn ? "Something went wrong on our end. Please try again later or contact your administrator." : "服务器内部发生错误，请稍后重试或联系管理员。")</div>
+        <div class="error-title">@("Server Error")</div>
+        <div class="error-desc">@("Something went wrong on our end. Please try again later or contact your administrator.")</div>
         <div class="error-actions">
-            <a href="/@prefix/" class="btn-primary"><i class="bi bi-house-door"></i> @(isEn ? "Back to Dashboard" : "返回首页")</a>
-            <a href="javascript:history.back()" class="btn-secondary"><i class="bi bi-arrow-left"></i> @(isEn ? "Go Back" : "返回上一页")</a>
+            <a href="/@prefix/" class="btn-primary"><i class="bi bi-house-door"></i> @("Back to Dashboard")</a>
+            <a href="javascript:history.back()" class="btn-secondary"><i class="bi bi-arrow-left"></i> @("Go Back")</a>
         </div>
     </div>
 </body>

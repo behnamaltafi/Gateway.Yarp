@@ -92,7 +92,7 @@
     };
 
     window.DashboardStorage.getLocale = function() {
-        return this.get('locale', 'zh-CN');
+        return this.get('locale', 'en-US');
     };
 
     window.DashboardStorage.setLocale = function(locale) {

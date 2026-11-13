@@ -11,16 +11,13 @@ namespace Aneiang.Yarp.Dashboard.Modules.Dashboard.Controllers;
 [Route("api/plugin-resources")]
 public sealed class PluginResourcesController(IPluginResourceMonitor monitor) : ControllerBase
 {
-    private string ResolveLocale() =>
-        Request.Cookies["dashboard_locale"] == "en-US" ? "en-US" : "zh-CN";
-
     /// <summary>Get resource usage for all plugins with localized display names.</summary>
     [HttpGet]
     public IActionResult GetAll()
     {
         var usage = monitor.GetAllUsage();
         var totals = monitor.GetTotals();
-        var locale = ResolveLocale();
+        var locale = "en-US";
         var dict = DashboardI18n.GetDict(locale);
 
         var localizedItems = usage.Select(u => new

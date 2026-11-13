@@ -44,11 +44,11 @@
             'CustomJwt': 'JWT (Custom)'
         };
         const modeLabels = {
-            'Auto': t('settings.system.deploy.mode.auto', '自动检测'),
-            'AllInOne': t('settings.system.deploy.mode.allInOne', '单端口共用'),
-            'Split': t('settings.system.deploy.mode.split', '多端口分离'),
-            'ProxyOnly': t('settings.system.deploy.mode.proxyOnly', '仅代理'),
-            'DashboardOnly': t('settings.system.deploy.mode.dashboardOnly', '仅仪表盘')
+            'Auto': t('settings.system.deploy.mode.auto', 'Auto-detect'),
+            'AllInOne': t('settings.system.deploy.mode.allInOne', 'All-in-One (Shared Port)'),
+            'Split': t('settings.system.deploy.mode.split', 'Split (Multi-port)'),
+            'ProxyOnly': t('settings.system.deploy.mode.proxyOnly', 'Proxy Only'),
+            'DashboardOnly': t('settings.system.deploy.mode.dashboardOnly', 'Dashboard Only')
         };
         const modeIcon = {
             'Auto': 'bi-diagram-3',
@@ -67,21 +67,19 @@
         var html = '';
         var dep = data.deployment || {};
 
-        // --- 部署横幅 ---
         var modeText = modeLabels[dep.mode] || dep.mode || '-';
         var modeIcn = modeIcon[dep.mode] || 'bi-diagram-3';
         html += '<div class="sys-deploy-banner">' +
             '<div class="sys-deploy-banner-mode"><i class="bi ' + modeIcn + '"></i>' + esc(modeText) + '</div>' +
             '<div class="sys-deploy-banner-flags">' +
-                '<span><i class="bi ' + (dep.autoMiddleware ? 'bi-check-circle-fill' : 'bi-x-circle-fill') + '"></i>' + t('settings.system.deploy.autoMiddleware', '自动挂载中间件') + '</span>' +
-                '<span><i class="bi ' + (dep.requireLoopbackAdmin ? 'bi-check-circle-fill' : 'bi-x-circle-fill') + '"></i>' + t('settings.system.deploy.requireLoopbackAdmin', 'Admin 本地绑定') + '</span>' +
-                '<span><i class="bi ' + (dep.requireLoopbackDashboard ? 'bi-check-circle-fill' : 'bi-x-circle-fill') + '"></i>' + t('settings.system.deploy.requireLoopbackDashboard', 'Dashboard 本地绑定') + '</span>' +
+                '<span><i class="bi ' + (dep.autoMiddleware ? 'bi-check-circle-fill' : 'bi-x-circle-fill') + '"></i>' + t('settings.system.deploy.autoMiddleware', 'Auto-mount Middleware') + '</span>' +
+                '<span><i class="bi ' + (dep.requireLoopbackAdmin ? 'bi-check-circle-fill' : 'bi-x-circle-fill') + '"></i>' + t('settings.system.deploy.requireLoopbackAdmin', 'Admin bound to loopback') + '</span>' +
+                '<span><i class="bi ' + (dep.requireLoopbackDashboard ? 'bi-check-circle-fill' : 'bi-x-circle-fill') + '"></i>' + t('settings.system.deploy.requireLoopbackDashboard', 'Dashboard bound to loopback') + '</span>' +
             '</div>' +
         '</div>';
 
-        // --- 端点卡片网格 ---
         if (dep.endpoints && dep.endpoints.length > 0) {
-            html += '<div class="sys-section-title"><i class="bi bi-hdd-network text-info"></i>' + t('settings.system.deploy.endpoints', '端点列表') + '</div>';
+            html += '<div class="sys-section-title"><i class="bi bi-hdd-network text-info"></i>' + t('settings.system.deploy.endpoints', 'Endpoints') + '</div>';
             html += '<div class="sys-endpoint-grid">';
             dep.endpoints.forEach(function(ep) {
                 var rc = roleColor[ep.role] || '#64748b';
@@ -99,17 +97,16 @@
             html += '</div>';
         }
 
-        // --- 健康检查卡片网格 ---
         var hc = dep.healthCheck || {};
         var hcItems = [
-            { label: t('settings.system.deploy.hc.enabled', '启用'), value: hc.enabled ? t('settings.system.deploy.yes', '是') : t('settings.system.deploy.no', '否'), yes: hc.enabled },
-            { label: t('settings.system.deploy.hc.path', '健康路径'), value: hc.path || '-' },
-            { label: t('settings.system.deploy.hc.readyPath', '就绪路径'), value: hc.readyPath || '-' },
-            { label: t('settings.system.deploy.hc.livePath', '存活路径'), value: hc.livePath || '-' },
-            { label: t('settings.system.deploy.hc.checkDb', '检查数据库'), value: hc.checkDatabase ? t('settings.system.deploy.yes', '是') : t('settings.system.deploy.no', '否'), yes: hc.checkDatabase },
-            { label: t('settings.system.deploy.hc.checkConfig', '检查配置加载'), value: hc.checkConfigLoaded ? t('settings.system.deploy.yes', '是') : t('settings.system.deploy.no', '否'), yes: hc.checkConfigLoaded }
+            { label: t('settings.system.deploy.hc.enabled', 'Enable'), value: hc.enabled ? t('settings.system.deploy.yes', 'Yes') : t('settings.system.deploy.no', 'No'), yes: hc.enabled },
+            { label: t('settings.system.deploy.hc.path', 'Health Path'), value: hc.path || '-' },
+            { label: t('settings.system.deploy.hc.readyPath', 'Ready Path'), value: hc.readyPath || '-' },
+            { label: t('settings.system.deploy.hc.livePath', 'Live Path'), value: hc.livePath || '-' },
+            { label: t('settings.system.deploy.hc.checkDb', 'Check Database'), value: hc.checkDatabase ? t('settings.system.deploy.yes', 'Yes') : t('settings.system.deploy.no', 'No'), yes: hc.checkDatabase },
+            { label: t('settings.system.deploy.hc.checkConfig', 'Check Config Loaded'), value: hc.checkConfigLoaded ? t('settings.system.deploy.yes', 'Yes') : t('settings.system.deploy.no', 'No'), yes: hc.checkConfigLoaded }
         ];
-        html += '<div class="sys-section-title"><i class="bi bi-heart-pulse text-danger"></i>' + t('settings.system.deploy.healthCheck', '健康检查') + '</div>';
+        html += '<div class="sys-section-title"><i class="bi bi-heart-pulse text-danger"></i>' + t('settings.system.deploy.healthCheck', 'Health Check') + '</div>';
         html += '<div class="sys-hc-grid">';
         hcItems.forEach(function(item) {
             var valColor = item.yes === true ? '#10b981' : item.yes === false ? '#94a3b8' : 'inherit';
@@ -120,7 +117,6 @@
         });
         html += '</div>';
 
-        // --- 基础信息卡片网格 ---
         var basicItems = [
             { label: t('settings.system.version', 'Version'), value: data.version || '-', icon: 'bi-tag', bg: '#eef2ff', fg: '#4f46e5' },
             { label: t('settings.system.routePrefix', 'Route Prefix'), value: data.routePrefix || '-', icon: 'bi-signpost-split', bg: '#ecfdf5', fg: '#059669' },
@@ -128,7 +124,7 @@
             { label: t('settings.system.databaseFile', 'Database File'), value: data.databaseFile || '-', icon: 'bi-hdd', bg: '#f0f9ff', fg: '#0284c7' },
             { label: t('settings.system.databaseSize', 'Database Size'), value: formatBytes(data.databaseSizeBytes), icon: 'bi-database', bg: '#fef2f2', fg: '#dc2626' }
         ];
-        html += '<div class="sys-section-title"><i class="bi bi-info-circle text-primary"></i>' + t('settings.system.basic', '基础信息') + '</div>';
+        html += '<div class="sys-section-title"><i class="bi bi-info-circle text-primary"></i>' + t('settings.system.basic', 'Basic Info') + '</div>';
         html += '<div class="sys-basic-grid">';
         basicItems.forEach(function(r) {
             html += '<div class="sys-basic-card">' +
@@ -151,12 +147,12 @@
             return window.DashboardUtils && DashboardUtils.escapeHtml ? DashboardUtils.escapeHtml(v) : String(v);
         };
         const listValue = function(arr) {
-            if (!arr || !arr.length) return t('settings.logging.restartRequired.empty', '未配置');
+            if (!arr || !arr.length) return t('settings.logging.restartRequired.empty', 'Not configured');
             return esc(arr.join(', '));
         };
         const items = [
             { label: t('settings.logging.restartRequired.bufferCapacity', 'Buffer Capacity'), value: data.bufferCapacity == null ? '-' : String(data.bufferCapacity), icon: 'bi-stack' },
-            { label: t('settings.logging.restartRequired.enableAsyncLogging', 'Async Logging'), value: data.enableAsyncLogging ? t('settings.logging.restartRequired.enabled', '启用') : t('settings.logging.restartRequired.disabled', '禁用'), icon: 'bi-lightning-charge' },
+            { label: t('settings.logging.restartRequired.enableAsyncLogging', 'Async Logging'), value: data.enableAsyncLogging ? t('settings.logging.restartRequired.enabled', 'Enable') : t('settings.logging.restartRequired.disabled', 'Disable'), icon: 'bi-lightning-charge' },
             { label: t('settings.logging.restartRequired.headerBlacklist', 'Header Blacklist'), value: listValue(data.headerBlacklist), icon: 'bi-eye-slash' },
             { label: t('settings.logging.restartRequired.queryBlacklist', 'Query Blacklist'), value: listValue(data.queryBlacklist), icon: 'bi-funnel' },
             { label: t('settings.logging.restartRequired.jsonFieldSanitizeList', 'JSON Field Sanitize List'), value: listValue(data.jsonFieldSanitizeList), icon: 'bi-mask' }
@@ -657,7 +653,7 @@
                     c.classList.toggle('active', c.dataset.provider === (config.provider || 'deepseek'));
                 });
                 $('ai-api-key').value = '';
-                $('ai-api-key').placeholder = config.hasApiKey ? '••••••••（已配置，留空不修改）' : 'sk-...';
+                $('ai-api-key').placeholder = config.hasApiKey ? 'Configured (leave blank to keep)' : 'sk-...';
                 $('ai-base-url').value = config.baseUrl || '';
                 $('ai-chat-model').value = config.chatModel || '';
                 $('ai-max-tokens').value = config.maxTokens || 4096;
@@ -678,7 +674,7 @@
                 $('ai-fallback-enabled').checked = !!fb.enabled;
                 $('ai-fallback-provider').value = fb.provider || 'openai';
                 $('ai-fallback-api-key').value = '';
-                $('ai-fallback-api-key').placeholder = fb.hasApiKey ? '••••••••（已配置，留空不修改）' : 'sk-...';
+                $('ai-fallback-api-key').placeholder = fb.hasApiKey ? 'Configured (leave blank to keep)' : 'sk-...';
                 $('ai-fallback-base-url').value = fb.baseUrl || '';
                 $('ai-fallback-model').value = fb.model || '';
                 this._fallbackHasKey = !!fb.hasApiKey;

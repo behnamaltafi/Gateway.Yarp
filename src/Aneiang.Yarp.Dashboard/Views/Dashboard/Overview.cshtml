@@ -1,5 +1,5 @@
 @{
-    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Overview" : "总览";
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Overview" : "Overview";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
     var prefix = ViewBag.DashboardRoutePrefix as string ?? "apigateway";
 }
@@ -310,7 +310,7 @@
 <!-- Help bar -->
 <div class="ov-help" id="overview-help-bar">
     <i class="bi bi-info-circle"></i>
-    <span data-i18n="page.help.overview">网关维护仪表盘总览，展示集群、路由、健康状态和实时流量。点击统计卡片可跳转到对应管理页面。</span>
+    <span data-i18n="page.help.overview">Gateway maintenance dashboard overview showing clusters, routes, health status, and real-time traffic. Click stat cards to navigate to management pages.</span>
     <button class="close" onclick="document.getElementById('overview-help-bar').style.display='none'">&times;</button>
 </div>
 
@@ -318,13 +318,13 @@
 <div class="ov-proxy-alert" id="proxy-config-alert" role="alert" style="display:none;">
     <i class="bi bi-exclamation-triangle-fill alert-icon"></i>
     <div class="ov-proxy-alert-body">
-        <span class="ov-proxy-alert-title" id="proxy-alert-title" data-i18n="proxyConfig.alertTitle">代理配置应用失败</span>
+        <span class="ov-proxy-alert-title" id="proxy-alert-title" data-i18n="proxyConfig.alertTitle">Proxy Configuration Apply Failed</span>
         <span class="ov-proxy-alert-desc" id="proxy-alert-desc"></span>
         <span class="ov-proxy-alert-meta" id="proxy-alert-meta"></span>
     </div>
     <div class="ov-proxy-alert-actions">
         <button type="button" class="ov-proxy-alert-btn" id="proxy-alert-toggle" onclick="toggleProxyAlertDetail()">
-            <i class="bi bi-list-ul"></i><span data-i18n="proxyConfig.viewDetails">查看详情</span>
+            <i class="bi bi-list-ul"></i><span data-i18n="proxyConfig.viewDetails">View Details</span>
         </button>
         <button type="button" class="ov-proxy-alert-close" onclick="document.getElementById('proxy-config-alert').style.display='none';document.getElementById('proxy-config-alert-detail').style.display='none';">&times;</button>
     </div>
@@ -341,18 +341,18 @@
 <!-- ① Hero status bar -->
 <div class="ov-hero">
     <div class="ov-hero-info">
-        <span><i class="bi bi-tag"></i><span data-i18n="index.label.version">版本</span> <strong id="info-version">-</strong></span>
-        <span><i class="bi bi-cloud"></i><span data-i18n="index.label.env">环境</span> <strong id="info-env">-</strong></span>
-        <span><i class="bi bi-play-circle"></i><span data-i18n="index.label.start">启动</span> <strong id="info-start">-</strong></span>
-        <span><i class="bi bi-clock-history"></i><span data-i18n="index.label.uptime">运行</span> <strong id="info-uptime">-</strong></span>
-        <span><i class="bi bi-memory"></i><span data-i18n="index.label.memory">内存</span> <strong id="info-memory">-</strong></span>
-        <span><i class="bi bi-pc-display"></i><span data-i18n="index.label.host">主机</span> <strong id="info-machine">-</strong></span>
+        <span><i class="bi bi-tag"></i><span data-i18n="index.label.version">Version:</span> <strong id="info-version">-</strong></span>
+        <span><i class="bi bi-cloud"></i><span data-i18n="index.label.env">Env:</span> <strong id="info-env">-</strong></span>
+        <span><i class="bi bi-play-circle"></i><span data-i18n="index.label.start">Started:</span> <strong id="info-start">-</strong></span>
+        <span><i class="bi bi-clock-history"></i><span data-i18n="index.label.uptime">Uptime:</span> <strong id="info-uptime">-</strong></span>
+        <span><i class="bi bi-memory"></i><span data-i18n="index.label.memory">Memory:</span> <strong id="info-memory">-</strong></span>
+        <span><i class="bi bi-pc-display"></i><span data-i18n="index.label.host">Host:</span> <strong id="info-machine">-</strong></span>
     </div>
     <div class="ov-hero-actions">
-        <span id="signalr-status" class="signalr-indicator signalr-off" data-i18n-title="overview.signalr.disconnected" title="SignalR 断开">
+        <span id="signalr-status" class="signalr-indicator signalr-off" data-i18n-title="overview.signalr.disconnected" title="SignalR Disconnected">
             <span class="signalr-dot"></span>
         </span>
-        <button class="ov-hero-btn" onclick="overviewRefresh(this)" data-i18n-title="index.btn.refresh" title="刷新">
+        <button class="ov-hero-btn" onclick="overviewRefresh(this)" data-i18n-title="index.btn.refresh" title="Refresh">
             <i class="bi bi-arrow-clockwise"></i>
         </button>
     </div>
@@ -367,7 +367,7 @@
         </span>
         <div class="ov-kpi-body">
             <div class="ov-kpi-value" id="stat-clusters">-</div>
-            <div class="ov-kpi-label" data-i18n="index.stat.clusters">服务集群</div>
+            <div class="ov-kpi-label" data-i18n="index.stat.clusters">Clusters</div>
             <div class="ov-kpi-trend"><span id="trend-clusters"><i class="bi bi-dash"></i> --</span></div>
         </div>
     </a>
@@ -377,7 +377,7 @@
             <span class="ov-health-ring-text" id="health-ring-text">0%</span>
         </div>
         <div class="ov-kpi-body">
-            <div class="ov-kpi-label" data-i18n="index.stat.health">健康状态</div>
+            <div class="ov-kpi-label" data-i18n="index.stat.health">Healthy / Unknown / Unhealthy</div>
             <div class="ov-health-legend">
                 <span><span class="dot" style="background:#22c55e;"></span><span id="stat-healthy-count">0</span></span>
                 <span><span class="dot" style="background:#f59e0b;"></span><span id="stat-unknown-count">0</span></span>
@@ -392,7 +392,7 @@
         </span>
         <div class="ov-kpi-body">
             <div class="ov-kpi-value" id="stat-routes">-</div>
-            <div class="ov-kpi-label" data-i18n="index.stat.routes">路由规则</div>
+            <div class="ov-kpi-label" data-i18n="index.stat.routes">Routes</div>
             <div class="ov-kpi-trend"><span id="trend-routes"><i class="bi bi-dash"></i> --</span></div>
         </div>
     </a>
@@ -403,7 +403,7 @@
         </div>
         <div class="ov-kpi-body">
             <div class="ov-kpi-value" id="stat-qps">-</div>
-            <div class="ov-kpi-label" data-i18n="overview.stat.qps">当前 QPS</div>
+            <div class="ov-kpi-label" data-i18n="overview.stat.qps">Current QPS</div>
             <div class="ov-kpi-trend"><span id="trend-qps"><i class="bi bi-dash"></i> --</span></div>
         </div>
     </div>
@@ -414,7 +414,7 @@
     <div class="ov-monitor-chart">
         <div class="card-panel">
             <div class="card-header">
-                <span><i class="bi bi-graph-up-arrow me-2"></i><span data-i18n="overview.chart.traffic">实时流量趋势 (QPS)</span></span>
+                <span><i class="bi bi-graph-up-arrow me-2"></i><span data-i18n="overview.chart.traffic">Traffic Trend</span></span>
                 <div class="card-header-actions">
                     <span class="pulse-dot me-1"></span>
                     <span class="badge bg-success" id="current-qps">0 req/s</span>
@@ -433,19 +433,19 @@
             <div class="ov-sys-card-header">
                 <div class="ov-sys-card-title">
                     <i class="bi bi-activity" style="color:#10b981;"></i>
-                    <span data-i18n="overview.systemHealth">系统健康</span>
+                    <span data-i18n="overview.systemHealth">System Health</span>
                 </div>
-                <span class="badge bg-success" id="sys-health-status" data-i18n="overview.healthy">健康</span>
+                <span class="badge bg-success" id="sys-health-status" data-i18n="overview.healthy">Healthy</span>
             </div>
             <div style="font-size:12px;color:var(--text-muted,#64748b);">
                 <i class="bi bi-database text-primary"></i>
-                <span id="sys-db-status" data-i18n="overview.connected">已连接</span>
+                <span id="sys-db-status" data-i18n="overview.connected">Connected</span>
             </div>
         </div>
         <!-- CPU -->
         <div class="ov-sys-card">
             <div class="ov-sys-card-header">
-                <div class="ov-sys-card-title"><i class="bi bi-cpu text-warning"></i><span data-i18n="overview.cpuUsage">CPU 使用率</span></div>
+                <div class="ov-sys-card-title"><i class="bi bi-cpu text-warning"></i><span data-i18n="overview.cpuUsage">CPU Usage</span></div>
                 <span class="ov-sys-card-value" id="sys-cpu-value">--</span>
             </div>
             <div class="ov-gauge">
@@ -455,7 +455,7 @@
         <!-- Memory -->
         <div class="ov-sys-card">
             <div class="ov-sys-card-header">
-                <div class="ov-sys-card-title"><i class="bi bi-memory text-info"></i><span data-i18n="overview.memUsage">内存使用</span></div>
+                <div class="ov-sys-card-title"><i class="bi bi-memory text-info"></i><span data-i18n="overview.memUsage">Memory Usage</span></div>
                 <span class="ov-sys-card-value" id="sys-mem-value">--</span>
             </div>
             <div class="ov-gauge">
@@ -465,11 +465,11 @@
         <!-- GC & Threads -->
         <div class="ov-sys-card">
             <div class="ov-sys-card-header">
-                <div class="ov-sys-card-title"><i class="bi bi-hdd-network text-success"></i><span data-i18n="overview.gcCount">GC 次数</span></div>
+                <div class="ov-sys-card-title"><i class="bi bi-hdd-network text-success"></i><span data-i18n="overview.gcCount">GC Count</span></div>
             </div>
             <div class="ov-sys-meta">
                 <span><i class="bi bi-arrow-repeat"></i><span id="sys-gc-value">--</span></span>
-                <span><i class="bi bi-diagram-2"></i><span data-i18n="overview.threadCount">线程</span> <span id="sys-thread-value">--</span></span>
+                <span><i class="bi bi-diagram-2"></i><span data-i18n="overview.threadCount">Threads</span> <span id="sys-thread-value">--</span></span>
             </div>
         </div>
     </div>
@@ -479,7 +479,7 @@
 <div class="ov-risk-row">
     <div class="card-panel">
         <div class="card-header">
-            <span><i class="bi bi-exclamation-triangle me-2" style="color:#ef4444;"></i><span data-i18n="overview.top.errorRoutes">Top 异常路由</span></span>
+            <span><i class="bi bi-exclamation-triangle me-2" style="color:#ef4444;"></i><span data-i18n="overview.top.errorRoutes">Top Error Routes</span></span>
             <span class="badge bg-danger" id="error-routes-count">0</span>
         </div>
         <div class="card-body p-0">
@@ -487,13 +487,13 @@
                 <table class="table table-hover table-striped-custom align-middle mb-0" style="font-size:13px;">
                     <thead>
                         <tr>
-                            <th style="width:50%;padding:10px 16px;"><span data-i18n="overview.top.th.route">路由</span></th>
-                            <th style="width:25%;padding:10px 16px;"><span data-i18n="overview.top.th.errors">错误数</span></th>
-                            <th style="width:25%;padding:10px 16px;"><span data-i18n="overview.top.th.rate">错误率</span></th>
+                            <th style="width:50%;padding:10px 16px;"><span data-i18n="overview.top.th.route">Route</span></th>
+                            <th style="width:25%;padding:10px 16px;"><span data-i18n="overview.top.th.errors">Errors</span></th>
+                            <th style="width:25%;padding:10px 16px;"><span data-i18n="overview.top.th.rate">Error Rate</span></th>
                         </tr>
                     </thead>
                     <tbody id="error-routes-tbody">
-                        <tr><td colspan="3" class="text-center py-4"><div class="empty-state"><div class="empty-state-icon"><i class="bi bi-shield-check"></i></div><div class="empty-state-title" data-i18n="overview.top.empty">暂无数据</div><div class="empty-state-desc" data-i18n="overview.top.emptyDesc">一切正常，没有异常路由</div></div></td></tr>
+                        <tr><td colspan="3" class="text-center py-4"><div class="empty-state"><div class="empty-state-icon"><i class="bi bi-shield-check"></i></div><div class="empty-state-title" data-i18n="overview.top.empty">No data</div><div class="empty-state-desc" data-i18n="overview.top.emptyDesc">All clear, no abnormal routes</div></div></td></tr>
                     </tbody>
                 </table>
             </div>
@@ -501,7 +501,7 @@
     </div>
     <div class="card-panel">
         <div class="card-header">
-            <span><i class="bi bi-stopwatch me-2" style="color:#f59e0b;"></i><span data-i18n="overview.top.slowClusters">Top 延迟集群</span></span>
+            <span><i class="bi bi-stopwatch me-2" style="color:#f59e0b;"></i><span data-i18n="overview.top.slowClusters">Top Slow Clusters</span></span>
             <span class="badge bg-warning text-dark" id="slow-clusters-count">0</span>
         </div>
         <div class="card-body p-0">
@@ -509,13 +509,13 @@
                 <table class="table table-hover table-striped-custom align-middle mb-0" style="font-size:13px;">
                     <thead>
                         <tr>
-                            <th style="width:50%;padding:10px 16px;"><span data-i18n="overview.top.th.cluster">集群</span></th>
-                            <th style="width:25%;padding:10px 16px;"><span data-i18n="overview.top.th.avgLatency">平均延迟</span></th>
-                            <th style="width:25%;padding:10px 16px;"><span data-i18n="overview.top.th.p99">P99延迟</span></th>
+                            <th style="width:50%;padding:10px 16px;"><span data-i18n="overview.top.th.cluster">Cluster</span></th>
+                            <th style="width:25%;padding:10px 16px;"><span data-i18n="overview.top.th.avgLatency">Avg Latency</span></th>
+                            <th style="width:25%;padding:10px 16px;"><span data-i18n="overview.top.th.p99">P99</span></th>
                         </tr>
                     </thead>
                     <tbody id="slow-clusters-tbody">
-                        <tr><td colspan="3" class="text-center py-4"><div class="empty-state"><div class="empty-state-icon"><i class="bi bi-speedometer2"></i></div><div class="empty-state-title" data-i18n="overview.top.empty">暂无数据</div><div class="empty-state-desc" data-i18n="overview.top.latencyEmptyDesc">延迟数据采集中</div></div></td></tr>
+                        <tr><td colspan="3" class="text-center py-4"><div class="empty-state"><div class="empty-state-icon"><i class="bi bi-speedometer2"></i></div><div class="empty-state-title" data-i18n="overview.top.empty">No data</div><div class="empty-state-desc" data-i18n="overview.top.latencyEmptyDesc">Latency data collecting</div></div></td></tr>
                         </tbody>
                 </table>
             </div>
@@ -527,17 +527,17 @@
 <div class="ov-config-row">
     <div class="card-panel" id="cluster-preview-panel">
         <div class="card-header">
-            <span><i class="bi bi-hdd-stack me-2" style="color:#3b82f6;"></i><span data-i18n="index.cluster.title">服务集群概览</span></span>
+            <span><i class="bi bi-hdd-stack me-2" style="color:#3b82f6;"></i><span data-i18n="index.cluster.title">Cluster &amp; Destination Status</span></span>
             <a href="/@prefix/clusters" class="btn btn-sm btn-outline-primary">
-                <i class="bi bi-arrow-right"></i> <span data-i18n="home.viewAll">查看全部</span>
+                <i class="bi bi-arrow-right"></i> <span data-i18n="home.viewAll">View All</span>
             </a>
         </div>
         <div class="table-responsive">
             <table class="table table-hover table-striped-custom align-middle" style="table-layout:fixed;width:100%">
                 <thead>
                     <tr>
-                        <th style="width:50%"><span data-i18n="index.cluster.th.name">集群名称</span></th>
-                        <th style="width:50%"><span data-i18n="index.cluster.th.health">健康状态</span></th>
+                        <th style="width:50%"><span data-i18n="index.cluster.th.name">Cluster</span></th>
+                        <th style="width:50%"><span data-i18n="index.cluster.th.health">Health Status</span></th>
                     </tr>
                 </thead>
                 <tbody id="cluster-preview-tbody">
@@ -554,17 +554,17 @@
     </div>
     <div class="card-panel" id="route-preview-panel">
         <div class="card-header">
-            <span><i class="bi bi-signpost-split me-2" style="color:#eab308;"></i><span data-i18n="index.route.title">路由规则概览</span></span>
+            <span><i class="bi bi-signpost-split me-2" style="color:#eab308;"></i><span data-i18n="index.route.title">Route Rules</span></span>
             <a href="/@prefix/routes" class="btn btn-sm btn-outline-primary">
-                <i class="bi bi-arrow-right"></i> <span data-i18n="home.viewAll">查看全部</span>
+                <i class="bi bi-arrow-right"></i> <span data-i18n="home.viewAll">View All</span>
             </a>
         </div>
         <div class="table-responsive">
             <table class="table table-hover table-striped-custom align-middle" style="table-layout:fixed;width:100%">
                 <thead>
                     <tr>
-                        <th style="width:50%"><span data-i18n="index.route.th.name">路由名称</span></th>
-                        <th style="width:50%"><span data-i18n="index.route.th.cluster">关联集群</span></th>
+                        <th style="width:50%"><span data-i18n="index.route.th.name">Route</span></th>
+                        <th style="width:50%"><span data-i18n="index.route.th.cluster">Cluster</span></th>
                     </tr>
                 </thead>
                 <tbody id="route-preview-tbody">
@@ -583,12 +583,12 @@
 
 <!-- ⑥ Quick actions (compact footer) -->
 <div class="ov-quick-actions mb-3">
-    <span class="ov-qa-label"><i class="bi bi-lightning-charge" style="color:#f59e0b;"></i> <span data-i18n="overview.quickActions">快捷操作</span></span>
-    <a href="/@prefix/clusters" class="btn btn-outline-primary btn-sm"><i class="bi bi-diagram-3 me-1"></i><span data-i18n="overview.action.addCluster">添加集群</span></a>
-    <a href="/@prefix/routes" class="btn btn-outline-primary btn-sm"><i class="bi bi-signpost-split me-1"></i><span data-i18n="overview.action.addRoute">添加路由</span></a>
-    <a href="/@prefix/logs" class="btn btn-outline-info btn-sm"><i class="bi bi-journal-text me-1"></i><span data-i18n="overview.action.viewLogs">查看日志</span></a>
-    <a href="/@prefix/traffic" class="btn btn-outline-success btn-sm"><i class="bi bi-graph-up-arrow me-1"></i><span data-i18n="overview.action.viewTraffic">流量监控</span></a>
-    <a href="/@prefix/plugins" class="btn btn-outline-secondary btn-sm"><i class="bi bi-puzzle me-1"></i><span data-i18n="overview.action.managePlugins">插件管理</span></a>
+    <span class="ov-qa-label"><i class="bi bi-lightning-charge" style="color:#f59e0b;"></i> <span data-i18n="overview.quickActions">Quick Actions</span></span>
+    <a href="/@prefix/clusters" class="btn btn-outline-primary btn-sm"><i class="bi bi-diagram-3 me-1"></i><span data-i18n="overview.action.addCluster">Add Cluster</span></a>
+    <a href="/@prefix/routes" class="btn btn-outline-primary btn-sm"><i class="bi bi-signpost-split me-1"></i><span data-i18n="overview.action.addRoute">Add Route</span></a>
+    <a href="/@prefix/logs" class="btn btn-outline-info btn-sm"><i class="bi bi-journal-text me-1"></i><span data-i18n="overview.action.viewLogs">View Logs</span></a>
+    <a href="/@prefix/traffic" class="btn btn-outline-success btn-sm"><i class="bi bi-graph-up-arrow me-1"></i><span data-i18n="overview.action.viewTraffic">Traffic Monitor</span></a>
+    <a href="/@prefix/plugins" class="btn btn-outline-secondary btn-sm"><i class="bi bi-puzzle me-1"></i><span data-i18n="overview.action.managePlugins">Plugin Manager</span></a>
 </div>
 
 @section Scripts {
@@ -802,7 +802,7 @@
             if (errBadge) errBadge.textContent = s.topErrorRoutes.length;
             if (s.topErrorRoutes.length === 0) {
                 errTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-4">' +
-                    (window.I18N && I18N['overview.top.empty'] ? I18N['overview.top.empty'] : '暂无数据') + '</td></tr>';
+                    (window.I18N && I18N['overview.top.empty'] ? I18N['overview.top.empty'] : 'No data') + '</td></tr>';
             } else {
                 var html = '';
                 s.topErrorRoutes.forEach(function(r) {
@@ -823,7 +823,7 @@
             if (slowBadge) slowBadge.textContent = s.topSlowClusters.length;
             if (s.topSlowClusters.length === 0) {
                 slowTbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-4">' +
-                    (window.I18N && I18N['overview.top.empty'] ? I18N['overview.top.empty'] : '暂无数据') + '</td></tr>';
+                    (window.I18N && I18N['overview.top.empty'] ? I18N['overview.top.empty'] : 'No data') + '</td></tr>';
             } else {
                 var slowHtml = '';
                 s.topSlowClusters.forEach(function(c) {
@@ -855,10 +855,10 @@
             var metaEl = document.getElementById('proxy-alert-meta');
             var first = (health.firstError || {});
             var where = first.clusterId || first.routeId || '';
-            var msg = first.message || (window.__ ? __('proxyConfig.unknownError') : '配置应用失败');
+            var msg = first.message || (window.__ ? __('proxyConfig.unknownError') : 'Configuration apply failed');
             if (descEl) descEl.textContent = (where ? '[' + where + '] ' : '') + msg;
             if (metaEl) {
-                var countLabel = window.__ ? __('proxyConfig.errorCountLabel') : '项错误';
+                var countLabel = window.__ ? __('proxyConfig.errorCountLabel') : 'error(s)';
                 var parts = [];
                 if (health.errorCount > 0) parts.push(health.errorCount + ' ' + countLabel);
                 var ts = formatProxyAlertTime(health.lastErrorAt);
@@ -885,13 +885,13 @@
             var html = '';
             if (errors.length === 0) {
                 html = '<div class="text-muted text-center py-2">' +
-                    (window.__ ? __('proxyConfig.noErrors') : '暂无错误') + '</div>';
+                    (window.__ ? __('proxyConfig.noErrors') : 'No errors') + '</div>';
             } else {
                 errors.forEach(function(e) {
                     var tag, tagCls;
                     if (e.clusterId) { tag = e.clusterId; tagCls = 'cluster'; }
                     else if (e.routeId) { tag = e.routeId; tagCls = 'route'; }
-                    else { tag = window.__ ? __('proxyConfig.global') : '全局'; tagCls = 'global'; }
+                    else { tag = window.__ ? __('proxyConfig.global') : 'Global'; tagCls = 'global'; }
                     var src = e.source ? '<span class="err-source">(' + escapeHtml(e.source) + ')</span>' : '';
                     html += '<div class="err-row">' +
                         '<span class="err-tag ' + tagCls + '">' + escapeHtml(tag) + '</span>' +
@@ -904,7 +904,7 @@
         } catch (err) {
             console.warn('[Overview] load proxy config errors failed:', err);
             detail.innerHTML = '<div class="text-danger text-center py-2">' +
-                (window.__ ? __('proxyConfig.loadFailed') : '加载失败') + '</div>';
+                (window.__ ? __('proxyConfig.loadFailed') : 'Load failed') + '</div>';
             detail.style.display = '';
         }
     }
@@ -928,8 +928,8 @@
         if (!bar) return;
         var title = document.getElementById('overview-error-title');
         var desc = document.getElementById('overview-error-desc');
-        if (title) title.textContent = window.__ ? __('overview.loadFailed') : '实时数据加载失败';
-        if (desc) desc.textContent = window.__ ? __('overview.loadFailedDesc') : '无法获取网关实时快照，页面可能在降级轮询模式下运行，请检查网络连接。';
+        if (title) title.textContent = window.__ ? __('overview.loadFailed') : 'Live data failed to load';
+        if (desc) desc.textContent = window.__ ? __('overview.loadFailedDesc') : 'Cannot fetch the gateway live snapshot. The page may be running in degraded polling mode. Please check your network.';
         bar.style.display = '';
     }
 

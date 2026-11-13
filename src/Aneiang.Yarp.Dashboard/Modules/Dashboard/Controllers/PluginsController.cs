@@ -29,14 +29,10 @@ public class PluginsController : ControllerBase
         _runtimeDomains = runtimeDomains;
     }
 
-    /// <summary>Resolve locale from cookie, default to zh-CN.</summary>
-    private string ResolveLocale() =>
-        Request.Cookies["dashboard_locale"] == "en-US" ? "en-US" : "zh-CN";
-
     /// <summary>Look up a localized value from i18n resources; fall back to the manifest value.</summary>
     private string Localize(string i18nKey, string fallback)
     {
-        var dict = DashboardI18n.GetDict(ResolveLocale());
+        var dict = DashboardI18n.GetDict("en-US");
         return dict.TryGetValue(i18nKey, out var localized) ? localized : fallback;
     }
 

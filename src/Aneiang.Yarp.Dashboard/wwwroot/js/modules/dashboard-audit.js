@@ -69,13 +69,13 @@
             (data.entries || []).forEach(function(e) { if (!e.success) failed++; });
 
             var html = '';
-            html += '<span class="pc-meta-item"><i class="bi bi-journal-text"></i><span class="pc-meta-num">' + total + '</span><span class="pc-meta-label">' + __('audit.totalLabel', '日志') + '</span></span>';
-            html += '<span class="pc-meta-item"><i class="bi bi-collection"></i><span class="pc-meta-num">' + entries + '</span><span class="pc-meta-label">' + __('audit.showingLabel', '展示') + '</span></span>';
+            html += '<span class="pc-meta-item"><i class="bi bi-journal-text"></i><span class="pc-meta-num">' + total + '</span><span class="pc-meta-label">' + __('audit.totalLabel', 'Entries') + '</span></span>';
+            html += '<span class="pc-meta-item"><i class="bi bi-collection"></i><span class="pc-meta-num">' + entries + '</span><span class="pc-meta-label">' + __('audit.showingLabel', 'Showing') + '</span></span>';
             if (failed > 0) {
                 html += '<span class="pc-meta-item pc-meta-item--danger"><i class="bi bi-x-circle"></i><span class="pc-meta-num">' + failed + '</span><span class="pc-meta-label">' + __('audit.failed') + '</span></span>';
             }
             if (evicted > 0) {
-                html += '<span class="pc-meta-item pc-meta-item--warn"><i class="bi bi-archive"></i><span class="pc-meta-num">' + evicted + '</span><span class="pc-meta-label">' + __('audit.evictedLabel', '已淘汰') + '</span></span>';
+                html += '<span class="pc-meta-item pc-meta-item--warn"><i class="bi bi-archive"></i><span class="pc-meta-num">' + evicted + '</span><span class="pc-meta-label">' + __('audit.evictedLabel', 'Evicted') + '</span></span>';
             }
 
             var actionFilter = window.DashboardState.get('filters.audit.action') || '';
@@ -139,12 +139,12 @@
             container.innerHTML =
                 '<div class="plg-table-wrap"><table class="plg-table audit-table">' +
                 '<thead><tr>' +
-                    '<th style="width:150px;">' + __('audit.time', '时间') + '</th>' +
-                    '<th style="width:150px;">' + __('audit.actionLabel', '操作') + '</th>' +
-                    '<th>' + __('audit.targetLabel', '目标') + '</th>' +
-                    '<th style="width:100px;">' + __('audit.statusLabel', '状态') + '</th>' +
-                    '<th style="width:100px;">' + __('audit.operatorLabel', '操作人') + '</th>' +
-                    '<th style="width:130px;">' + __('audit.ipLabel', '来源 IP') + '</th>' +
+                    '<th style="width:150px;">' + __('audit.time', 'Time') + '</th>' +
+                    '<th style="width:150px;">' + __('audit.actionLabel', 'Actions') + '</th>' +
+                    '<th>' + __('audit.targetLabel', 'Target') + '</th>' +
+                    '<th style="width:100px;">' + __('audit.statusLabel', 'Status') + '</th>' +
+                    '<th style="width:100px;">' + __('audit.operatorLabel', 'Operator') + '</th>' +
+                    '<th style="width:130px;">' + __('audit.ipLabel', 'Client IP') + '</th>' +
                     '<th style="width:36px;"></th>' +
                 '</tr></thead>' +
                 '<tbody>' + rows + '</tbody>' +

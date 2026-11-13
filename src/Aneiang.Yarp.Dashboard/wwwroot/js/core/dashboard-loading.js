@@ -423,11 +423,11 @@
     // #region Import/batch progress (#6)
 
     /**
-     * Shows a determinate progress bar with a label (e.g. "导入中... 3 / 10").
+     * Shows a determinate progress bar with a label (e.g. "Importing... 3 / 10").
      * Reuses the global loading UI but adds a progress strip in the corner badge.
      * @param {number} current - 0..total (0 hides the bar but keeps badge)
      * @param {number} total - total steps
-     * @param {string} [label] - custom label, e.g. "导入中"
+     * @param {string} [label] - custom label, e.g. "Importing"
      */
     window.DashboardLoading.setProgress = function(current, total, label) {
         createUi();
@@ -444,7 +444,7 @@
     /**
      * Wraps a batch operation, showing X/Y progress as it processes each item.
      * @param {Array} items - the items to process
-     * @param {string} label - e.g. "导入中"
+     * @param {string} label - e.g. "Importing"
      * @param {function} processFn - async (item, index) => result
      * @param {number} [concurrency=1] - how many to process in parallel
      * @returns {Promise<Array>} results in input order

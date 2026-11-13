@@ -1,28 +1,28 @@
 @{
-    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Plugin Resources" : "插件资源";
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Plugin Resources" : "Plugin Resources";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
 }
 
 <div id="plugin-resources-app">
     <div class="page-help-bar" id="plugin-resources-help-bar">
         <i class="bi bi-info-circle"></i>
-        <span class="help-text" data-i18n="page.help.pluginResources">此页面展示每个插件在运行时的资源占用和请求统计。数据在请求经过网关时自动采集。</span>
+        <span class="help-text" data-i18n="page.help.pluginResources">This page shows runtime resource usage and request statistics for each plugin. Data is collected automatically as requests flow through the gateway.</span>
         <button class="help-close" onclick="document.getElementById('plugin-resources-help-bar').classList.add('collapsed')">&times;</button>
     </div>
 
     <div class="pr-header">
         <div class="pr-header-left">
             <span class="pr-header-icon"><i class="bi bi-cpu"></i></span>
-            <span class="pr-header-title" data-i18n="pluginResources.title">插件资源</span>
+            <span class="pr-header-title" data-i18n="pluginResources.title">Plugin Resources</span>
         </div>
         <div class="pr-header-right">
-            <div class="pr-trend-chips" id="pr-trend-chips" data-i18n-title="resources.trendSpan" title="近 5 分钟">
-                <button type="button" class="pr-chip" data-metric="throughput" data-i18n="resources.trendThroughput">吞吐</button>
-                <button type="button" class="pr-chip" data-metric="latency" data-i18n="resources.trendLatency">延迟</button>
-                <button type="button" class="pr-chip" data-metric="errors" data-i18n="resources.trendErrors">错误</button>
+            <div class="pr-trend-chips" id="pr-trend-chips" data-i18n-title="resources.trendSpan" title="Last 5 min">
+                <button type="button" class="pr-chip" data-metric="throughput" data-i18n="resources.trendThroughput">Throughput</button>
+                <button type="button" class="pr-chip" data-metric="latency" data-i18n="resources.trendLatency">Latency</button>
+                <button type="button" class="pr-chip" data-metric="errors" data-i18n="resources.trendErrors">Errors</button>
             </div>
             <span id="pr-refresh-time" class="pr-refresh-badge"></span>
-            <button class="pr-refresh-btn" onclick="PluginResourcesModule.load()" data-i18n-title="index.btn.refresh" title="刷新" aria-label="刷新">
+            <button class="pr-refresh-btn" onclick="PluginResourcesModule.load()" data-i18n-title="index.btn.refresh" title="Refresh" aria-label="Refresh">
                 <i class="bi bi-arrow-clockwise"></i>
             </button>
         </div>
@@ -31,7 +31,7 @@
     <div id="pr-content">
         <div class="loading-state">
             <div class="loading-spinner"></div>
-            <div class="loading-text" data-i18n="pluginPage.loading">加载中...</div>
+            <div class="loading-text" data-i18n="pluginPage.loading">Loading...</div>
         </div>
     </div>
 </div>

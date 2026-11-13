@@ -183,7 +183,7 @@
             container.innerHTML = summaryHtml +
                 '<div class="plg-table-wrap"><table class="plg-table"><thead><tr>' +
                     '<th><i class="bi bi-puzzle me-1"></i>' + __('plugin.title') + '</th>' +
-                    '<th><i class="bi bi-activity me-1"></i>' + __('plugin.colHealth', '健康状态') + '</th>' +
+                    '<th><i class="bi bi-activity me-1"></i>' + __('plugin.colHealth', 'Health Status') + '</th>' +
                     '<th class="plg-th-actions"></th>' +
                 '</tr></thead><tbody>' + rows + '</tbody></table></div>';
         },

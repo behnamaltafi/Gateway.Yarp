@@ -59,9 +59,9 @@ public class DashboardOptions
     public string RoutePrefix { get; set; } = "apigateway";
 
     /// <summary>
-    /// Dashboard UI locale. Default: "zh-CN".
+    /// Dashboard UI locale. Default: "en-US".
     /// </summary>
-    public string Locale { get; set; } = "zh-CN";
+    public string Locale { get; set; } = "en-US";
 
 }
 

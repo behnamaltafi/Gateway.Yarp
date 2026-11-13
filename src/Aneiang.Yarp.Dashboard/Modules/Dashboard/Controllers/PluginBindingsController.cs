@@ -53,12 +53,9 @@ public sealed class PluginBindingsController : ControllerBase
         _runtimeDomains = runtimeDomains;
     }
 
-    private string ResolveLocale() =>
-        Request.Cookies["dashboard_locale"] == "en-US" ? "en-US" : "zh-CN";
-
     private string Localize(string i18nKey, string fallback)
     {
-        var dict = DashboardI18n.GetDict(ResolveLocale());
+        var dict = DashboardI18n.GetDict("en-US");
         return dict.TryGetValue(i18nKey, out var localized) ? localized : fallback;
     }
 

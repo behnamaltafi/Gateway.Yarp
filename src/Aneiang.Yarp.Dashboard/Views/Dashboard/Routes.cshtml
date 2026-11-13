@@ -1,37 +1,37 @@
 @using Aneiang.Yarp.Plugin.ProxyLog.Models
 @{
-    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Routes" : "路由配置";
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Routes" : "Routes";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
 }
 
 <!-- Route panel -->
 <div class="page-help-bar" id="routes-help-bar">
     <i class="bi bi-info-circle"></i>
-    <span class="help-text" data-i18n="page.help.routes">路由规则定义了请求如何匹配并转发到后端集群。匹配路径支持通配符，如 /api/** 匹配所有子路径。点击行可展开查看转发配置和绑定的插件能力。</span>
+    <span class="help-text" data-i18n="page.help.routes">Routes define how requests are matched and forwarded to backend clusters. Path patterns support wildcards like /api/**. Click a row to expand forwarding config and bound plugin capabilities.</span>
     <button class="help-close" onclick="document.getElementById('routes-help-bar').classList.add('collapsed')">&times;</button>
 </div>
 <!-- Proxy config apply-error hint bar (populated by dashboard-routes.js) -->
 <div id="route-config-alert" class="config-alert-bar" style="display:none;" role="alert"></div>
 <div id="route-panel" class="card-panel mb-4">
     <div class="card-header">
-        <span><i class="bi bi-signpost-split me-2" style="color:#f59e0b;"></i><span data-i18n="index.route.title">路由规则列表</span></span>
+        <span><i class="bi bi-signpost-split me-2" style="color:#f59e0b;"></i><span data-i18n="index.route.title">Route Rules</span></span>
         <div class="card-header-actions">
             <div id="route-batch-bar" class="batch-bar" style="display:none;">
-                <span class="batch-count"><i class="bi bi-check2-square"></i><strong id="route-batch-count">0</strong><span data-i18n="batch.selected"> 项已选</span></span>
+                <span class="batch-count"><i class="bi bi-check2-square"></i><strong id="route-batch-count">0</strong><span data-i18n="batch.selected"> selected</span></span>
                 <span class="batch-bar-divider" aria-hidden="true"></span>
                 <div class="batch-bar-actions">
-                    <button class="btn btn-sm batch-action" onclick="RoutesModule.batchSetEnabled(true)"><i class="bi bi-toggle-on"></i><span data-i18n="batch.enable">批量启用</span></button>
-                    <button class="btn btn-sm batch-action" onclick="RoutesModule.batchSetEnabled(false)"><i class="bi bi-toggle-off"></i><span data-i18n="batch.disable">批量禁用</span></button>
-                    <button class="btn btn-sm batch-action" onclick="RoutesModule.batchBindPlugin()"><i class="bi bi-plug"></i><span data-i18n="batch.bindPlugin">批量绑插件</span></button>
-                    <button class="btn btn-sm batch-action" onclick="RoutesModule.exportSelected()"><i class="bi bi-download"></i><span data-i18n="batch.export">导出选中</span></button>
-                    <button class="btn btn-sm batch-action batch-action-danger" onclick="RoutesModule.batchDelete()"><i class="bi bi-trash"></i><span data-i18n="batch.delete">批量删除</span></button>
+                    <button class="btn btn-sm batch-action" onclick="RoutesModule.batchSetEnabled(true)"><i class="bi bi-toggle-on"></i><span data-i18n="batch.enable">Batch Enable</span></button>
+                    <button class="btn btn-sm batch-action" onclick="RoutesModule.batchSetEnabled(false)"><i class="bi bi-toggle-off"></i><span data-i18n="batch.disable">Batch Disable</span></button>
+                    <button class="btn btn-sm batch-action" onclick="RoutesModule.batchBindPlugin()"><i class="bi bi-plug"></i><span data-i18n="batch.bindPlugin">Batch Bind Plugin</span></button>
+                    <button class="btn btn-sm batch-action" onclick="RoutesModule.exportSelected()"><i class="bi bi-download"></i><span data-i18n="batch.export">Export Selected</span></button>
+                    <button class="btn btn-sm batch-action batch-action-danger" onclick="RoutesModule.batchDelete()"><i class="bi bi-trash"></i><span data-i18n="batch.delete">Batch Delete</span></button>
                 </div>
-                <button class="btn btn-sm batch-dismiss" onclick="RoutesModule.clearBatch()" title="清除选择" aria-label="清除选择"><i class="bi bi-x-lg"></i></button>
+                <button class="btn btn-sm batch-dismiss" onclick="RoutesModule.clearBatch()" title="Clear selection" aria-label="Clear selection"><i class="bi bi-x-lg"></i></button>
             </div>
         </div>
         <div class="d-flex align-items-center" style="gap:6px 16px;white-space:nowrap;">
             <span class="refresh-badge" id="route-refresh-time"></span>
-            <span class="refresh-badge"><span data-i18n="index.route.showing">显示 </span><strong id="route-display-count">0</strong><span data-i18n="index.route.of"> / </span><span id="route-total-count">0</span><span data-i18n="index.route.entries"> 个</span></span>
+            <span class="refresh-badge"><span data-i18n="index.route.showing">Showing </span><strong id="route-display-count">0</strong><span data-i18n="index.route.of"> / </span><span id="route-total-count">0</span><span data-i18n="index.route.entries"> entries</span></span>
         </div>
     </div>
 
@@ -46,12 +46,12 @@
                     <tr>
                         <th style="width:36px;text-align:center;"><input type="checkbox" id="route-select-all" onclick="RoutesModule.toggleSelectAll(this.checked)"></th>
                         <th style="width:36px"></th>
-                        <th style="width:80px;white-space:nowrap"><span data-i18n="index.route.orderCol">优先级</span></th>
-                        <th style="width:22%"><span data-i18n="index.route.th.name">路由名称</span></th>
-                        <th><span data-i18n="index.route.th.path">匹配路径</span></th>
-                        <th style="width:140px"><span data-i18n="index.route.clusterCol">集群</span></th>
-                        <th style="width:120px"><span data-i18n="index.route.methodCol">方法</span></th>
-                        <th style="width:160px"><span data-i18n="index.route.th.actions">操作</span></th>
+                        <th style="width:80px;white-space:nowrap"><span data-i18n="index.route.orderCol">Order</span></th>
+                        <th style="width:22%"><span data-i18n="index.route.th.name">Route</span></th>
+                        <th><span data-i18n="index.route.th.path">Path</span></th>
+                        <th style="width:140px"><span data-i18n="index.route.clusterCol">Cluster</span></th>
+                        <th style="width:120px"><span data-i18n="index.route.methodCol">Methods</span></th>
+                        <th style="width:160px"><span data-i18n="index.route.th.actions">Actions</span></th>
                     </tr>
                 </thead>
                 <tbody id="route-tbody">

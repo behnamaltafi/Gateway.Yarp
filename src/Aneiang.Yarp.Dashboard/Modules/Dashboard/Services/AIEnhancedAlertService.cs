@@ -32,31 +32,31 @@ public class AIEnhancedAlertService : IGatewayAlertService
     public void AlertCircuitBreakerOpen(string clusterId, string? destinationId = null)
     {
         _inner.AlertCircuitBreakerOpen(clusterId, destinationId);
-        Enhance("CircuitBreakerOpen", $"熔断器已打开 cluster={clusterId}, destination={destinationId}");
+        Enhance("CircuitBreakerOpen", $"Circuit breaker opened cluster={clusterId}, destination={destinationId}");
     }
 
     public void AlertRetryExhausted(string clusterId, string routeId, int attempts, int statusCode)
     {
         _inner.AlertRetryExhausted(clusterId, routeId, attempts, statusCode);
-        Enhance("RetryExhausted", $"重试耗尽 cluster={clusterId}, route={routeId}, attempts={attempts}, status={statusCode}");
+        Enhance("RetryExhausted", $"Retries exhausted cluster={clusterId}, route={routeId}, attempts={attempts}, status={statusCode}");
     }
 
     public void AlertWafBlock(string clientIp, string blockReason, string? uri = null)
     {
         _inner.AlertWafBlock(clientIp, blockReason, uri);
-        Enhance("WafBlock", $"WAF 拦截 clientIp={clientIp}, reason={blockReason}, uri={uri}");
+        Enhance("WafBlock", $"WAF blocked a request clientIp={clientIp}, reason={blockReason}, uri={uri}");
     }
 
     public void AlertProxyError(string clusterId, string? destinationId, string errorMessage, string? stackTrace = null)
     {
         _inner.AlertProxyError(clusterId, destinationId, errorMessage, stackTrace);
-        Enhance("ProxyError", $"代理错误 cluster={clusterId}, destination={destinationId}, error={errorMessage}");
+        Enhance("ProxyError", $"Proxy error cluster={clusterId}, destination={destinationId}, error={errorMessage}");
     }
 
     public void AlertRateLimitExceeded(string clientIp, string? routeId = null)
     {
         _inner.AlertRateLimitExceeded(clientIp, routeId);
-        Enhance("RateLimitExceeded", $"触发限流 clientIp={clientIp}, route={routeId}");
+        Enhance("RateLimitExceeded", $"Rate limit exceeded clientIp={clientIp}, route={routeId}");
     }
 
     public void AlertCustom(string alertType, string title, string message, string severity = "Info")
@@ -76,11 +76,11 @@ public class AIEnhancedAlertService : IGatewayAlertService
                 using var scope = _services.CreateScope();
                 var ai = scope.ServiceProvider.GetRequiredService<AIService>();
                 const string systemPrompt =
-                    "你是网关运维助手。根据给定的告警信息，用中文输出一段简短分析（1~3 句）：说明可能的原因，并给出 1~2 条可操作的处置建议。不要使用列表符号或 Markdown。";
-                var (ok, content) = await ai.CompleteAsync(systemPrompt, $"告警类型: {type}\n告警详情: {context}");
+                    "You are a gateway operations assistant. Write a brief English analysis in one to three sentences. Give the likely cause and one or two actionable steps. Use plain text.";
+                var (ok, content) = await ai.CompleteAsync(systemPrompt, $"Alert type: {type}\nAlert details: {context}");
                 if (ok && !string.IsNullOrWhiteSpace(content))
                 {
-                    _inner.AlertCustom(type, "AI 增强分析", content, "Info");
+                    _inner.AlertCustom(type, "AI analysis", content, "Info");
                 }
             }
             catch (Exception ex)

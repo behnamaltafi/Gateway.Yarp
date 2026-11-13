@@ -6,18 +6,11 @@
 
     window.DashboardI18n = window.DashboardI18n || {};
 
-    let currentLocale = 'zh-CN';
+    const currentLocale = 'en-US';
     let translations = {};
 
     window.DashboardI18n.init = function() {
-        // Get locale from dashboard config or localStorage
         const dashboard = window.__dashboard;
-        if (dashboard && dashboard.CURRENT_LOCALE) {
-            currentLocale = dashboard.CURRENT_LOCALE;
-        } else {
-            currentLocale = localStorage.getItem('dashboard_locale') || 'zh-CN';
-        }
-
         // Load translations
         if (dashboard && dashboard.I18N) {
             translations = dashboard.I18N;
@@ -49,30 +42,8 @@
     window.DashboardI18n.t = window.__;
     window.DashboardI18n.translations = translations;
 
-    window.DashboardI18n.setLocale = function(locale) {
-        currentLocale = locale;
-        localStorage.setItem('dashboard_locale', locale);
-        
-        // Update dashboard config
-        if (window.__dashboard) {
-            window.__dashboard.CURRENT_LOCALE = locale;
-        }
-
-        // Trigger re-render
-        document.dispatchEvent(new CustomEvent('dashboard:localeChange', {
-            detail: { locale }
-        }));
-
-    };
-
     window.DashboardI18n.getLocale = function() {
         return currentLocale;
-    };
-
-    window.DashboardI18n.toggleLocale = function() {
-        const newLocale = currentLocale === 'zh-CN' ? 'en-US' : 'zh-CN';
-        this.setLocale(newLocale);
-        return newLocale;
     };
 
     window.DashboardI18n.formatDate = function(date, options = {}) {

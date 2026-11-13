@@ -103,7 +103,7 @@
                 html += '<div class="pc-meta-actions">';
                 html += '<span class="plg-plugin-id" style="font-size:11.5px;">' + scopeLabel + '</span>';
                 html += '<span id="' + refreshTimeId + '" class="refresh-badge"></span>';
-                html += '<button class="pr-refresh-btn" data-action="refresh" title="' + t('index.btn.refresh', '刷新') + '"><i class="bi bi-arrow-clockwise"></i></button>';
+                html += '<button class="pr-refresh-btn" data-action="refresh" title="' + t('index.btn.refresh', 'Refresh') + '"><i class="bi bi-arrow-clockwise"></i></button>';
                 html += '<button class="btn btn-sm btn-success" data-action="add"><i class="bi bi-plus-lg me-1"></i>' + t('pluginPage.addBinding', 'Add Binding') + '</button>';
                 html += '</div>';
                 html += '</div>';

@@ -1,35 +1,35 @@
 @using Aneiang.Yarp.Plugin.ProxyLog.Models
 @{
-    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Clusters" : "服务集群";
+    ViewData["Title"] = ((ViewBag.Locale as string) == "en-US") ? "Clusters" : "Clusters";
     Layout = "~/Views/Shared/_DashboardLayout.cshtml";
 }
 
 <!-- Cluster panel -->
 <div class="page-help-bar" id="clusters-help-bar">
     <i class="bi bi-info-circle"></i>
-    <span class="help-text" data-i18n="page.help.clusters">服务集群是一组后端服务节点的集合，路由规则会将请求转发到指定的集群。点击行可展开查看节点详情和绑定的插件能力。</span>
+    <span class="help-text" data-i18n="page.help.clusters">A cluster is a group of backend service nodes. Routes forward requests to specified clusters. Click a row to expand node details and bound plugin capabilities.</span>
     <button class="help-close" onclick="document.getElementById('clusters-help-bar').classList.add('collapsed')">&times;</button>
 </div>
 <!-- Proxy config apply-error hint bar (populated by dashboard-clusters.js) -->
 <div id="cluster-config-alert" class="config-alert-bar" style="display:none;" role="alert"></div>
 <div id="cluster-panel" class="card-panel mb-4">
     <div class="card-header">
-        <span><i class="bi bi-hdd-stack me-2" style="color:#3b82f6;"></i><span data-i18n="index.cluster.title">集群 &amp; 目标节点状态</span></span>
+        <span><i class="bi bi-hdd-stack me-2" style="color:#3b82f6;"></i><span data-i18n="index.cluster.title">Cluster &amp; Destination Status</span></span>
         <div class="card-header-actions">
             <div id="cluster-batch-bar" class="batch-bar" style="display:none;">
-                <span class="batch-count"><i class="bi bi-check2-square"></i><strong id="cluster-batch-count">0</strong><span data-i18n="batch.selected"> 项已选</span></span>
+                <span class="batch-count"><i class="bi bi-check2-square"></i><strong id="cluster-batch-count">0</strong><span data-i18n="batch.selected"> selected</span></span>
                 <span class="batch-bar-divider" aria-hidden="true"></span>
                 <div class="batch-bar-actions">
-                    <button class="btn btn-sm batch-action" onclick="ClustersModule.batchBindPlugin()"><i class="bi bi-plug"></i><span data-i18n="batch.bindPlugin">批量绑插件</span></button>
-                    <button class="btn btn-sm batch-action" onclick="ClustersModule.exportSelected()"><i class="bi bi-download"></i><span data-i18n="batch.export">导出选中</span></button>
-                    <button class="btn btn-sm batch-action batch-action-danger" onclick="ClustersModule.batchDelete()"><i class="bi bi-trash"></i><span data-i18n="batch.delete">批量删除</span></button>
+                    <button class="btn btn-sm batch-action" onclick="ClustersModule.batchBindPlugin()"><i class="bi bi-plug"></i><span data-i18n="batch.bindPlugin">Batch Bind Plugin</span></button>
+                    <button class="btn btn-sm batch-action" onclick="ClustersModule.exportSelected()"><i class="bi bi-download"></i><span data-i18n="batch.export">Export Selected</span></button>
+                    <button class="btn btn-sm batch-action batch-action-danger" onclick="ClustersModule.batchDelete()"><i class="bi bi-trash"></i><span data-i18n="batch.delete">Batch Delete</span></button>
                 </div>
-                <button class="btn btn-sm batch-dismiss" onclick="ClustersModule.clearBatch()" title="清除选择" aria-label="清除选择"><i class="bi bi-x-lg"></i></button>
+                <button class="btn btn-sm batch-dismiss" onclick="ClustersModule.clearBatch()" title="Clear selection" aria-label="Clear selection"><i class="bi bi-x-lg"></i></button>
             </div>
         </div>
         <div class="d-flex align-items-center" style="gap:6px 16px;white-space:nowrap;">
             <span class="refresh-badge" id="cluster-refresh-time"></span>
-            <span class="refresh-badge"><span data-i18n="index.cluster.showing">显示 </span><strong id="cluster-display-count">0</strong><span data-i18n="index.cluster.of"> / </span><span id="cluster-total-count">0</span><span data-i18n="index.cluster.entries"> 个</span></span>
+            <span class="refresh-badge"><span data-i18n="index.cluster.showing">Showing </span><strong id="cluster-display-count">0</strong><span data-i18n="index.cluster.of"> / </span><span id="cluster-total-count">0</span><span data-i18n="index.cluster.entries"> entries</span></span>
         </div>
     </div>
 
@@ -44,12 +44,12 @@
                     <tr>
                         <th style="width:36px;text-align:center;"><input type="checkbox" id="cluster-select-all" onclick="ClustersModule.toggleSelectAll(this.checked)"></th>
                         <th style="width:38px"></th>
-                        <th><span data-i18n="index.cluster.th.name">集群名称</span></th>
-                        <th style="width:90px"><span data-i18n="index.source.filter">来源</span></th>
-                        <th style="width:90px"><span data-i18n="index.cluster.health.filter">健康状态</span></th>
-                        <th style="width:80px"><span data-i18n="index.cluster.destCount">节点数</span></th>
-                        <th style="width:110px"><span data-i18n="index.cluster.loadBalancing">负载策略</span></th>
-                        <th style="width:160px"><span data-i18n="index.cluster.th.actions">操作</span></th>
+                        <th><span data-i18n="index.cluster.th.name">Cluster</span></th>
+                        <th style="width:90px"><span data-i18n="index.source.filter">Source</span></th>
+                        <th style="width:90px"><span data-i18n="index.cluster.health.filter">Health</span></th>
+                        <th style="width:80px"><span data-i18n="index.cluster.destCount">destinations</span></th>
+                        <th style="width:110px"><span data-i18n="index.cluster.loadBalancing">Load Balancing</span></th>
+                        <th style="width:160px"><span data-i18n="index.cluster.th.actions">Actions</span></th>
                     </tr>
                 </thead>
                 <tbody id="cluster-tbody">

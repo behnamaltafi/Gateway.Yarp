@@ -14,7 +14,7 @@
  *   window.DashboardBatchPlugin.openDialog({
  *     scope: 'Cluster' | 'Route',
  *     scopeIds: [...],
- *     scopeLabel: '集群' | '路由',
+ *     scopeLabel: 'Cluster' | 'Routes',
  *     onDone: function() { /* refresh list *​/ }
  *   });
  */
@@ -44,8 +44,8 @@
 
     function scopeName(scope) {
         return scope === 'Route'
-            ? __('batch.scope.route', '路由')
-            : __('batch.scope.cluster', '集群');
+            ? __('batch.scope.route', 'Routes')
+            : __('batch.scope.cluster', 'Cluster');
     }
 
     function buildModalHtml() {
@@ -53,42 +53,42 @@
         var scope = scopeName(opts.scope);
         return ''
             + '<div class="modal-header">'
-            +   '<h5 class="modal-title"><i class="bi bi-plug me-2" style="color:#3b82f6;"></i>' + esc(__('batch.bindPluginTitle', '批量绑插件')) + '</h5>'
+            +   '<h5 class="modal-title"><i class="bi bi-plug me-2" style="color:#3b82f6;"></i>' + esc(__('batch.bindPluginTitle', 'Batch Bind Plugin')) + '</h5>'
             +   '<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>'
             + '</div>'
             + '<div class="modal-body">'
             +   '<div class="mb-3">'
-            +     '<label class="form-label fw-semibold">' + esc(scope) + ' <span class="text-muted">(' + esc(__('batch.selected', '已选')) + ' ' + opts.scopeIds.length + ')</span></label>'
+            +     '<label class="form-label fw-semibold">' + esc(scope) + ' <span class="text-muted">(' + esc(__('batch.selected', 'selected')) + ' ' + opts.scopeIds.length + ')</span></label>'
             +     '<div class="form-control-plaintext text-muted small" style="max-height:60px;overflow:auto;">' + opts.scopeIds.map(esc).join('、') + '</div>'
             +   '</div>'
             +   '<div class="mb-3">'
-            +     '<label class="form-label fw-semibold">' + esc(__('batch.plugin', '插件')) + '</label>'
+            +     '<label class="form-label fw-semibold">' + esc(__('batch.plugin', 'Plugin')) + '</label>'
             +     '<select id="batch-plugin-select" class="form-select">'
-            +       '<option value="">' + esc(__('batch.selectPlugin', '请选择插件')) + '</option>'
+            +       '<option value="">' + esc(__('batch.selectPlugin', 'Select a plugin')) + '</option>'
             +     '</select>'
             +     '<div id="batch-plugin-meta" class="form-text text-muted small mt-1"></div>'
             +   '</div>'
             +   '<div class="mb-3">'
-            +     '<label class="form-label fw-semibold">' + esc(__('batch.configForm', '插件配置')) + '</label>'
+            +     '<label class="form-label fw-semibold">' + esc(__('batch.configForm', 'Plugin Configuration')) + '</label>'
             +     '<div id="batch-plugin-schema-form" data-role="schema-form"></div>'
-            +     '<div id="batch-plugin-schema-empty" class="form-text text-muted small d-none">' + esc(__('batch.noSchema', '此插件无可配置项，将使用默认配置')) + '</div>'
+            +     '<div id="batch-plugin-schema-empty" class="form-text text-muted small d-none">' + esc(__('batch.noSchema', 'This plugin has no configurable fields; defaults will be used')) + '</div>'
             +   '</div>'
             +   '<div class="d-flex gap-4 mb-2">'
             +     '<div class="form-check form-switch">'
             +       '<input class="form-check-input" type="checkbox" id="batch-plugin-enabled" checked>'
-            +       '<label class="form-check-label" for="batch-plugin-enabled">' + esc(__('batch.bindingEnabled', '启用绑定')) + '</label>'
+            +       '<label class="form-check-label" for="batch-plugin-enabled">' + esc(__('batch.bindingEnabled', 'Enable binding')) + '</label>'
             +     '</div>'
             +     '<div class="form-check form-switch">'
             +       '<input class="form-check-input" type="checkbox" id="batch-plugin-overwrite">'
-            +       '<label class="form-check-label" for="batch-plugin-overwrite">' + esc(__('batch.overwrite', '覆盖已存在绑定')) + '</label>'
+            +       '<label class="form-check-label" for="batch-plugin-overwrite">' + esc(__('batch.overwrite', 'Overwrite existing bindings')) + '</label>'
             +     '</div>'
             +   '</div>'
             +   '<div id="batch-plugin-result" class="mt-2"></div>'
             + '</div>'
             + '<div class="modal-footer">'
-            +   '<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">' + esc(__('common.cancel', '取消')) + '</button>'
+            +   '<button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">' + esc(__('common.cancel', 'Cancel')) + '</button>'
             +   '<button type="button" class="btn btn-primary" id="batch-plugin-submit">'
-            +     '<i class="bi bi-check-lg"></i> ' + esc(__('batch.bind', '绑定'))
+            +     '<i class="bi bi-check-lg"></i> ' + esc(__('batch.bind', 'Bind'))
             +   '</button>'
             + '</div>';
     }
@@ -129,7 +129,7 @@
             cap.renderGroupedFields(formHost, schema, state.config, state.plugin.pluginId);
         } else {
             // Cap unavailable — degrade to a notice rather than a raw JSON textarea.
-            emptyNotice.textContent = __('batch.noSchema', '此插件无可配置项，将使用默认配置');
+            emptyNotice.textContent = __('batch.noSchema', 'This plugin has no configurable fields; defaults will be used');
             emptyNotice.classList.remove('d-none');
         }
     }
@@ -157,7 +157,7 @@
 
     function loadPlugins() {
         var sel = state.modal._element.querySelector('#batch-plugin-select');
-        sel.innerHTML = '<option value="">' + esc(__('batch.loading', '加载中...')) + '</option>';
+        sel.innerHTML = '<option value="">' + esc(__('batch.loading', 'Loading...')) + '</option>';
         sel.disabled = true;
         window.DashboardApi.endpoints.getInstalledPlugins()
             .then(function (resp) {
@@ -173,14 +173,14 @@
                 var opts = state.plugins.map(function (p) {
                     return '<option value="' + esc(p.pluginId) + '">' + esc(p.displayName || p.pluginId) + '</option>';
                 }).join('');
-                sel.innerHTML = '<option value="">' + esc(__('batch.selectPlugin', '请选择插件')) + '</option>' + opts;
+                sel.innerHTML = '<option value="">' + esc(__('batch.selectPlugin', 'Select a plugin')) + '</option>' + opts;
                 sel.disabled = state.plugins.length === 0;
                 if (state.plugins.length === 0) {
-                    sel.innerHTML = '<option value="">' + esc(__('batch.noPluginForScope', '当前作用域无可用插件')) + '</option>';
+                    sel.innerHTML = '<option value="">' + esc(__('batch.noPluginForScope', 'No plugins available for this scope')) + '</option>';
                 }
             })
             .catch(function () {
-                sel.innerHTML = '<option value="">' + esc(__('batch.loadFailed', '插件加载失败')) + '</option>';
+                sel.innerHTML = '<option value="">' + esc(__('batch.loadFailed', 'Failed to load plugins')) + '</option>';
                 sel.disabled = true;
             });
     }
@@ -196,7 +196,7 @@
         btn.disabled = !!flag;
         btn.innerHTML = flag
             ? '<span class="spinner-border spinner-border-sm"></span>'
-            : '<i class="bi bi-check-lg"></i> ' + esc(__('batch.bind', '绑定'));
+            : '<i class="bi bi-check-lg"></i> ' + esc(__('batch.bind', 'Bind'));
     }
 
     function onSubmit() {
@@ -206,7 +206,7 @@
         var overwrite = el.querySelector('#batch-plugin-overwrite').checked;
 
         if (!pluginId || !state.plugin) {
-            setResult('<div class="alert alert-warning py-2 mb-0"><i class="bi bi-exclamation-triangle"></i> ' + esc(__('batch.selectPluginFirst', '请先选择插件')) + '</div>');
+            setResult('<div class="alert alert-warning py-2 mb-0"><i class="bi bi-exclamation-triangle"></i> ' + esc(__('batch.selectPluginFirst', 'Select a plugin first')) + '</div>');
             return;
         }
 
@@ -217,7 +217,7 @@
             var formEl = el.querySelector('#batch-plugin-schema-form');
             var collected = cap.readSchemaForm(formEl, state.schema, state.config);
             if (collected === null) {
-                setResult('<div class="alert alert-warning py-2 mb-0"><i class="bi bi-exclamation-triangle"></i> ' + esc(__('batch.validationError', '请检查表单填写')) + '</div>');
+                setResult('<div class="alert alert-warning py-2 mb-0"><i class="bi bi-exclamation-triangle"></i> ' + esc(__('batch.validationError', 'Please check form fields')) + '</div>');
                 return;
             }
             config = collected;
@@ -247,7 +247,7 @@
             var items = data.items || [];
             if (failed === 0) {
                 setResult('<div class="alert alert-success py-2 mb-0"><i class="bi bi-check-circle"></i> '
-                    + esc(__('batch.bindSuccess', '绑定成功') + ' (' + succeeded + ')') + '</div>');
+                    + esc(__('batch.bindSuccess', 'Bindings created') + ' (' + succeeded + ')') + '</div>');
                 setTimeout(function () {
                     if (state.modal) state.modal.hide();
                     if (state.opts.onDone) state.opts.onDone();
@@ -256,11 +256,11 @@
                 var failedList = items.filter(function (it) { return !it.success; })
                     .map(function (it) { return '<li>' + esc(it.id) + ' — ' + esc(it.message) + '</li>'; }).join('');
                 setResult('<div class="alert alert-warning py-2 mb-0"><i class="bi bi-exclamation-triangle"></i> '
-                    + esc(__('batch.bindPartial', '部分失败') + ' (' + succeeded + '/' + data.total + ')')
+                    + esc(__('batch.bindPartial', 'Some operations failed') + ' (' + succeeded + '/' + data.total + ')')
                     + (failedList ? '<ul class="mb-0 mt-1 small">' + failedList + '</ul>' : '') + '</div>');
             }
         }).catch(function (e) {
-            setResult('<div class="alert alert-danger py-2 mb-0"><i class="bi bi-x-circle"></i> ' + esc(e.message || __('api.requestFailed', '请求失败')) + '</div>');
+            setResult('<div class="alert alert-danger py-2 mb-0"><i class="bi bi-x-circle"></i> ' + esc(e.message || __('api.requestFailed', 'Request failed')) + '</div>');
         }).finally(function () { setSubmitting(false); });
     }
 

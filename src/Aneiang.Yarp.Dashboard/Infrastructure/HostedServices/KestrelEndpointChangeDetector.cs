@@ -80,8 +80,8 @@ public class KestrelEndpointChangeDetector : IHostedService, IDisposable
         {
             _restartState.MarkRestartRequired(
                 "Kestrel:Endpoints",
-                "端点配置变更",
-                "Kestrel:Endpoints 修改需要重启进程才能生效",
+                "Endpoint configuration changed",
+                "Restart the process to apply Kestrel endpoint changes",
                 "Kestrel:Endpoints");
         }
 
@@ -94,8 +94,8 @@ public class KestrelEndpointChangeDetector : IHostedService, IDisposable
 
             _lastAlertSignature = signature;
             _logger.LogWarning("One or more restart-bound deployment settings changed. Restart required for changes to take effect.");
-            _alertService.AlertCustom("DeploymentRestartRequired", "部署配置需要重启",
-                "端口、TLS、进程模式或 Kestrel 端点等配置修改需要重启进程才能生效", "Warning");
+            _alertService.AlertCustom("DeploymentRestartRequired", "部署Configuration requires a restart",
+                "Restart the process to apply port, TLS, deployment mode, or Kestrel endpoint changes", "Warning");
         }
     }
 
@@ -111,8 +111,8 @@ public class KestrelEndpointChangeDetector : IHostedService, IDisposable
             changed = true;
             _restartState.MarkRestartRequired(
                 original.Key,
-                "配置需要重启",
-                $"{original.Key} 已变更，需要重启进程才能生效",
+                "Configuration requires a restart",
+                $"{original.Key} changed. Restart the process to apply the change.",
                 original.Key);
         }
 

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Dashboard Utilities - Common helper functions
  */
 (function() {
@@ -147,13 +147,13 @@
     };
 
     window.DashboardUtils.formatTime = function(date, locale) {
-        locale = locale || window.__dashboard?.CURRENT_LOCALE || 'zh-CN';
+        locale = locale || window.__dashboard?.CURRENT_LOCALE || 'en-US';
         const d = typeof date === 'string' ? new Date(date) : date;
         return d.toLocaleTimeString(locale, { hour12: false });
     };
 
     window.DashboardUtils.formatDateTime = function(date, locale) {
-        locale = locale || window.__dashboard?.CURRENT_LOCALE || 'zh-CN';
+        locale = locale || window.__dashboard?.CURRENT_LOCALE || 'en-US';
         const d = typeof date === 'string' ? new Date(date) : date;
         return d.toLocaleString(locale, { hour12: false });
     };

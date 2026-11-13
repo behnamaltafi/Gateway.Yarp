@@ -11,7 +11,7 @@
         app: {
             initialized: false,
             currentTab: 'overview',
-            currentLocale: 'zh-CN',
+            currentLocale: 'en-US',
             loading: false
         },
 

@@ -487,7 +487,7 @@
                     return item;
                 });
                 if (invalidItem) {
-                    input.setCustomValidity(__('capability.validation.arrayItemType', '数组项类型不正确'));
+                    input.setCustomValidity(__('capability.validation.arrayItemType', 'Array item type is invalid'));
                     input.classList.add('is-invalid');
                     return { valid: false };
                 }

@@ -1,6 +1,5 @@
 @* Partial: Logs panel (no config sub-panel - managed by PluginCenter) *@
 @{
-    var isEn = (ViewBag.Locale as string) == "en-US";
 }
 
 <style>
@@ -58,33 +57,33 @@
 <!-- Log panel -->
 <div class="page-help-bar" id="logs-help-bar">
     <i class="bi bi-info-circle"></i>
-    <span class="help-text" data-i18n="page.help.logs">实时日志展示经过网关的请求记录。支持按级别、状态码、路由筛选。日志插件需启用后才会记录。</span>
+    <span class="help-text" data-i18n="page.help.logs">Real-time logs show requests flowing through the gateway. Filter by level, status code, or route. The proxy log plugin must be enabled to record logs.</span>
     <button class="help-close" onclick="document.getElementById('logs-help-bar').classList.add('collapsed')">&times;</button>
 </div>
 
 <div class="plugin-hint-banner" id="logs-plugin-hint">
     <i class="bi bi-info-circle"></i>
-    <span data-i18n="common.pluginNotConfigured">未配置插件，数据可能为空</span>
-    <a href="/@ViewBag.DashboardRoutePrefix/plugin-center#proxy-log" class="plugin-hint-link" data-i18n="common.goPluginConfig">前往配置 <i class="bi bi-arrow-right ms-1"></i></a>
+    <span data-i18n="common.pluginNotConfigured">Plugin not configured, data may be empty</span>
+    <a href="/@ViewBag.DashboardRoutePrefix/plugin-center#proxy-log" class="plugin-hint-link" data-i18n="common.goPluginConfig">Go to configuration <i class="bi bi-arrow-right ms-1"></i></a>
 </div>
 
 <div id="log-panel" class="card-panel mb-4">
     <div class="card-header">
-        <span><i class="bi bi-journal-text me-2" style="color:#8b5cf6;"></i><span data-i18n="index.log.title">实时日志</span></span>
+        <span><i class="bi bi-journal-text me-2" style="color:#8b5cf6;"></i><span data-i18n="index.log.title">Real-time Logs</span></span>
         <div class="card-header-actions">
             <span class="pulse-dot me-1"></span>
             <span class="refresh-badge" id="log-refresh-time"></span>
-            <span class="refresh-badge"><span data-i18n="index.log.showing">显示 </span><strong id="log-display-count">0</strong><span data-i18n="index.log.of"> / </span><span id="log-total-count">0</span><span data-i18n="index.log.entries"> 条</span></span>
+            <span class="refresh-badge"><span data-i18n="index.log.showing">Showing </span><strong id="log-display-count">0</strong><span data-i18n="index.log.of"> / </span><span id="log-total-count">0</span><span data-i18n="index.log.entries"> entries</span></span>
         </div>
     </div>
 
     <!-- Tab navigation -->
     <div class="nav-tabs-bar">
         <button class="nav-tab-btn active" id="log-tab-realtime" onclick="LogsModule.switchTab('realtime')">
-            <i class="bi bi-broadcast me-1"></i><span data-i18n="index.log.realtimeTab">实时日志</span>
+            <i class="bi bi-broadcast me-1"></i><span data-i18n="index.log.realtimeTab">Live</span>
         </button>
         <button class="nav-tab-btn" id="log-tab-history" onclick="LogsModule.switchTab('history')">
-            <i class="bi bi-clock-history me-1"></i><span data-i18n="index.log.historyTab">历史日志</span>
+            <i class="bi bi-clock-history me-1"></i><span data-i18n="index.log.historyTab">History</span>
         </button>
     </div>
 
@@ -95,10 +94,10 @@
             <div id="log-entries" class="log-entries-container">
                 <div class="empty-state">
                     <div class="empty-state-icon"><i class="bi bi-journal-text"></i></div>
-                    <div class="empty-state-title" data-i18n="index.log.empty">暂无日志</div>
-                    <div class="empty-state-desc" data-i18n="index.log.emptyDesc">等待请求流量进入网关后，日志将实时显示此处</div>
+                    <div class="empty-state-title" data-i18n="index.log.empty">No logs</div>
+                    <div class="empty-state-desc" data-i18n="index.log.emptyDesc">Logs will appear here when requests flow through the gateway</div>
                     <a href="/@ViewBag.DashboardRoutePrefix/plugin-center#proxy-log" class="empty-state-action" data-i18n="common.goPluginConfig">
-                        前往插件中心配置日志插件 <i class="bi bi-arrow-right ms-1"></i>
+                        Configure the logging plugin <i class="bi bi-arrow-right ms-1"></i>
                     </a>
                 </div>
             </div>
@@ -111,14 +110,14 @@
             <div class="card-body py-2 border-bottom">
                 <div class="row g-2 align-items-center">
                     <div class="col-auto">
-                        <input type="datetime-local" class="form-control form-control-sm" id="history-start-time" style="width:170px;" placeholder="@(isEn ? "From" : "开始时间")">
+                        <input type="datetime-local" class="form-control form-control-sm" id="history-start-time" style="width:170px;" placeholder="@("From")">
                     </div>
                     <div class="col-auto">
-                        <input type="datetime-local" class="form-control form-control-sm" id="history-end-time" style="width:170px;" placeholder="@(isEn ? "To" : "结束时间")">
+                        <input type="datetime-local" class="form-control form-control-sm" id="history-end-time" style="width:170px;" placeholder="@("To")">
                     </div>
                     <div class="col-auto">
                         <select class="form-select form-select-sm" id="history-level-select" style="width:110px;">
-                            <option value="">@(isEn ? "All Levels" : "所有级别")</option>
+                            <option value="">@("All Levels")</option>
                             <option value="Information">Information</option>
                             <option value="Warning">Warning</option>
                             <option value="Error">Error</option>
@@ -128,13 +127,13 @@
                     </div>
                     <div class="col-auto">
                         <select class="form-select form-select-sm" id="history-event-type-select" style="width:110px;">
-                            <option value="">@(isEn ? "All Types" : "全部类型")</option>
-                            <option value="ProxyRequest">@(isEn ? "Request" : "请求")</option>
-                            <option value="ProxyResponse">@(isEn ? "Response" : "响应")</option>
+                            <option value="">@("All Types")</option>
+                            <option value="ProxyRequest">@("Request")</option>
+                            <option value="ProxyResponse">@("Response")</option>
                         </select>
                     </div>
                     <div class="col">
-                        <input type="text" class="form-control form-control-sm" id="history-keyword-input" placeholder="@(isEn ? "Keyword..." : "关键词...")">
+                        <input type="text" class="form-control form-control-sm" id="history-keyword-input" placeholder="@("Keyword...")">
                     </div>
                     <div class="col-auto">
                         <button class="btn btn-sm btn-outline-primary" id="history-search-btn" onclick="LogsModule.searchHistory()">
@@ -144,10 +143,10 @@
                 </div>
                 <div class="row g-2 align-items-center mt-1">
                     <div class="col-auto">
-                        <input type="text" class="form-control form-control-sm" id="history-route-id" style="width:140px;" placeholder="@(isEn ? "Route ID" : "路由ID")">
+                        <input type="text" class="form-control form-control-sm" id="history-route-id" style="width:140px;" placeholder="@("Route ID")">
                     </div>
                     <div class="col-auto">
-                        <input type="text" class="form-control form-control-sm" id="history-cluster-id" style="width:140px;" placeholder="@(isEn ? "Cluster ID" : "集群ID")">
+                        <input type="text" class="form-control form-control-sm" id="history-cluster-id" style="width:140px;" placeholder="@("Cluster ID")">
                     </div>
                     <div class="col-auto">
                         <div class="input-group input-group-sm" style="width:180px;">
@@ -164,10 +163,10 @@
             <div id="log-history-entries" class="log-entries-container">
                 <div class="empty-state">
                     <div class="empty-state-icon"><i class="bi bi-clock-history"></i></div>
-                    <div class="empty-state-title" data-i18n="index.log.noHistory">暂无历史日志</div>
-                    <div class="empty-state-desc" data-i18n="index.log.noHistoryDesc">持久化未启用或尚未写入历史数据</div>
+                    <div class="empty-state-title" data-i18n="index.log.noHistory">No History</div>
+                    <div class="empty-state-desc" data-i18n="index.log.noHistoryDesc">Persistence is not enabled or no history data yet</div>
                     <a href="/@ViewBag.DashboardRoutePrefix/plugin-center#proxy-log" class="empty-state-action" data-i18n="common.goPluginConfig">
-                        前往插件中心配置日志插件 <i class="bi bi-arrow-right ms-1"></i>
+                        Configure the logging plugin <i class="bi bi-arrow-right ms-1"></i>
                     </a>
                 </div>
             </div>
@@ -175,11 +174,11 @@
 
         <div id="log-history-pagination" class="log-pagination" style="display:none;">
             <button class="btn btn-sm btn-outline-secondary" id="history-prev-btn" onclick="LogsModule.prevHistoryPage()">
-                <i class="bi bi-chevron-left"></i> <span data-i18n="index.log.pagination.prev">上一页</span>
+                <i class="bi bi-chevron-left"></i> <span data-i18n="index.log.pagination.prev">Previous</span>
             </button>
             <span class="page-info" id="history-page-info"></span>
             <button class="btn btn-sm btn-outline-secondary" id="history-next-btn" onclick="LogsModule.nextHistoryPage()">
-                <span data-i18n="index.log.pagination.next">下一页</span> <i class="bi bi-chevron-right"></i>
+                <span data-i18n="index.log.pagination.next">Next</span> <i class="bi bi-chevron-right"></i>
             </button>
         </div>
     </div>

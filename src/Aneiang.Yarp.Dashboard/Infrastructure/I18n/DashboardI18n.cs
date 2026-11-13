@@ -5,31 +5,25 @@ namespace Aneiang.Yarp.Dashboard.Infrastructure.I18n;
 
 /// <summary>
 /// Client-side internationalization dictionary for the Dashboard UI.
-/// Provides zh-CN and en-US translations loaded from embedded JSON resource files.
+/// Provides English translations loaded from embedded JSON resource files.
 /// Translation files are organized by business domain under Infrastructure/I18n/{locale}/.
 /// </summary>
 public static class DashboardI18n
 {
     private const string ResourcePrefix = "Aneiang.Yarp.Dashboard.Infrastructure.I18n";
 
-    /// <summary>Chinese (Simplified) translation dictionary.</summary>
-    public static readonly Dictionary<string, string> ZhCN;
-
     /// <summary>English translation dictionary.</summary>
     public static readonly Dictionary<string, string> EnUS;
 
     static DashboardI18n()
     {
-        ZhCN = LoadLocale("zh-CN");
         EnUS = LoadLocale("en-US");
     }
 
     /// <summary>Returns the translation dictionary for the given locale.</summary>
     public static Dictionary<string, string> GetDict(string? locale)
     {
-        return string.Equals(locale, "en-US", StringComparison.OrdinalIgnoreCase)
-            ? EnUS
-            : ZhCN;
+        return EnUS;
     }
 
     /// <summary>Serializes the full translation dictionary to JSON for client-side consumption.</summary>
@@ -44,7 +38,7 @@ public static class DashboardI18n
         var dict = new Dictionary<string, string>();
         var assembly = Assembly.GetExecutingAssembly();
 
-        // MSBuild normalises folder names: zh-CN → zh_CN, en-US → en_US
+        // MSBuild normalises folder names: en-US → en_US
         var localePath = locale.Replace('-', '_');
 
         foreach (var domain in DomainFiles)
