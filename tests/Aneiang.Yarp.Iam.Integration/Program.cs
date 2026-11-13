@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text;
 using Aneiang.Yarp.Extensions;
@@ -31,7 +32,8 @@ backend.Urls.Add("http://127.0.0.1:0");
 backend.MapMethods("/{**path}", ["GET", "DELETE"], (HttpContext context) =>
 {
     Interlocked.Increment(ref forwards);
-    return Results.Json(new { method = context.Request.Method, spoof = context.Request.Headers.ContainsKey("X-Role") });
+    return Results.Json(new { method = context.Request.Method, spoof = context.Request.Headers.ContainsKey("X-Role")
+        || context.Request.Headers.ContainsKey("X-IAM-Resource-Proof") || context.Request.Headers.ContainsKey("X-SystemId") });
 });
 await backend.StartAsync();
 
@@ -65,12 +67,8 @@ var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("test-only-signing-key
 builder.Services.PostConfigure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, jwt =>
 {
     jwt.Authority = null;
-    jwt.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuer = true, ValidIssuer = issuer, ValidateAudience = false, ValidateLifetime = true,
-        ValidateIssuerSigningKey = true, IssuerSigningKey = key, RequireSignedTokens = true,
-        RequireExpirationTime = true, ClockSkew = TimeSpan.Zero, ValidAlgorithms = [SecurityAlgorithms.HmacSha256]
-    };
+    jwt.TokenValidationParameters.IssuerSigningKey = key;
+    jwt.TokenValidationParameters.ClockSkew = TimeSpan.Zero;
 });
 
 await using var app = builder.Build();
@@ -132,6 +130,8 @@ await Check("S07/S10 valid direct grant forwards and spoofed identity header is 
     using var request = new HttpRequestMessage(HttpMethod.Delete, "/items/1");
     request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token("user-1", audience));
     request.Headers.Add("X-Role", "admin");
+    request.Headers.Add("X-IAM-Resource-Proof", "client-supplied");
+    request.Headers.Add("X-SystemId", "10");
     var response = await client.SendAsync(request);
     Assert(response.IsSuccessStatusCode);
     Assert(!(await response.Content.ReadAsStringAsync()).Contains("\"spoof\":true"));
@@ -150,14 +150,61 @@ await Check("S09/S11 principal kind and business scope cannot borrow grants", ()
     var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim("aud", audience)], "fixture"));
     var scoped = Policy(deleteRoute, "DELETE", IamAuthMode.Permission, ["orders.delete"]) with
     {
-        RequiredPermissions = ["orders.delete", "orders.approve"], AllowedPrincipalKinds = [IamPrincipalKind.User],
-        EnforcementMode = IamEnforcementMode.GatewayAndResource, ResourceScopeRequired = true
+        AllowedPrincipalKinds = [IamPrincipalKind.User]
     };
     var snapshot = new IamEntitlementSnapshot(1, Guid.NewGuid().ToString(), issuer, "user-1", application, 1,
         DateTimeOffset.UtcNow.AddSeconds(-1), DateTimeOffset.UtcNow.AddSeconds(119), true, IamPrincipalKind.User,
         [new IamGrant("orders.delete", IamScopeKind.System, "10", null, "Role"), new IamGrant("orders.approve", IamScopeKind.System, "20", null, "Direct")]);
     Assert(!evaluator.Evaluate(scoped, principal, snapshot).Allowed);
-    Assert(!evaluator.Evaluate(scoped, principal, snapshot with { PrincipalKind = IamPrincipalKind.Service }).Allowed);
+    var role = snapshot with { Grants = [new("orders.delete", IamScopeKind.Global, null, null, "Role")] };
+    Assert(evaluator.Evaluate(scoped, principal, role).Allowed);
+    Assert(!evaluator.Evaluate(scoped, principal, role with { PrincipalKind = IamPrincipalKind.Service }).Allowed);
+    Assert(!evaluator.Evaluate(scoped, principal, role with { IsActive = false, Grants = [] }).Allowed);
+    Assert(!evaluator.Evaluate(scoped, principal, role with { Grants = [] }).Allowed);
+    Assert(!evaluator.Evaluate(scoped, principal, role with { Grants = [role.Grants[0] with { ExpiresAt = DateTimeOffset.UtcNow }] }).Allowed);
+    var multiple = scoped with { RequiredPermissions = ["orders.delete", "orders.approve"] };
+    Assert(!evaluator.Evaluate(multiple, principal, role).Allowed);
+    Assert(evaluator.Evaluate(multiple with { RequirementMode = IamRequirementMode.Any }, principal, role).Allowed);
+    return Task.CompletedTask;
+});
+
+await Check("invalid, expired and ID tokens never forward", async () =>
+{
+    var before = forwards;
+    foreach (var token in new[] { "invalid", Token("user-1", audience, expired: true), Token("user-1", audience, type: "ID") })
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Delete, "/items/1");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        Assert((await client.SendAsync(request)).StatusCode == HttpStatusCode.Unauthorized);
+    }
+    Assert(forwards == before);
+});
+
+await Check("wrong entitlement application fails closed", async () =>
+{
+    var before = forwards;
+    using var request = new HttpRequestMessage(HttpMethod.Delete, "/items/1");
+    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", Token("wrong-app", audience));
+    Assert((await client.SendAsync(request)).StatusCode == HttpStatusCode.ServiceUnavailable);
+    Assert(forwards == before);
+});
+
+await Check("schema 1 rejects legacy enforcement, legacy fields and missing enforcement", () =>
+{
+    var candidate = Bundle(Policy(getRoute, "GET", IamAuthMode.Anonymous));
+    var json = Encoding.UTF8.GetString(Convert.FromBase64String(candidate.PolicyContentBase64));
+    const string mode = ",\"enforcementMode\":\"GatewayOnly\"";
+    Assert(json.Contains(mode, StringComparison.Ordinal));
+    foreach (var replacement in new[] { ",\"enforcementMode\":\"GatewayAndResource\"", mode + ",\"ResourceScopeRequired\":false", "" })
+    {
+        var bytes = Encoding.UTF8.GetBytes(json.Replace(mode, replacement, StringComparison.Ordinal));
+        var invalid = candidate with
+        {
+            Hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant(),
+            PolicyContentBase64 = Convert.ToBase64String(bytes)
+        };
+        Assert(!IamPolicyBundleValidator.TryValidate(invalid, DateTimeOffset.UtcNow, out _));
+    }
     return Task.CompletedTask;
 });
 
@@ -187,6 +234,39 @@ await Check("S14 positive cache expiry is absolute and capped at 120 seconds", a
     manual.Advance(TimeSpan.FromSeconds(2));
     await cache.GetAsync(issuer, "ttl", application, CancellationToken.None);
     Assert(localSource.Fetches == 2);
+});
+
+await Check("entitlement wire POST, coalesced miss and zero HTTP on cache hit", async () =>
+{
+    var clock = new ManualTimeProvider(DateTimeOffset.UtcNow);
+    var options = Options.Create(new IamGatewayOptions { EntitlementEndpoint = new Uri("https://iam.test/internal/v1/entitlements/resolve") });
+    var httpRequests = 0;
+    using var http = new HttpClient(new FixtureHttpHandler(async (request, ct) =>
+    {
+        Interlocked.Increment(ref httpRequests);
+        Assert(request.Method == HttpMethod.Post && request.RequestUri == options.Value.EntitlementEndpoint);
+        Assert(request.Headers.Authorization?.ToString() == "Bearer fixture-service-token");
+        using var payload = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(ct));
+        var root = payload.RootElement;
+        Assert(root.GetProperty("schemaVersion").GetInt32() == 1 && root.GetProperty("applicationId").GetString() == application);
+        var identity = root.GetProperty("validatedIdentity");
+        Assert(identity.GetProperty("issuer").GetString() == issuer && identity.GetProperty("subject").GetString() == "wire-user");
+        await Task.Delay(30, ct);
+        return new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = JsonContent.Create(new
+            {
+                schemaVersion = 1, principalId = Guid.NewGuid(), applicationId = application, issuer, subject = "wire-user",
+                principalKind = "User", clientId = (string?)null, revision = 1, issuedAt = clock.GetUtcNow(),
+                expiresAt = clock.GetUtcNow().AddMinutes(2), isActive = true,
+                grants = new[] { new { permissionCode = "orders.delete", scopeKind = "System", scopeId = "10", expiresAt = (DateTimeOffset?)null, source = "Role" } }
+            })
+        };
+    }));
+    using var cache = new IamEntitlementCache(new IamHttpEntitlementSource(http, options, new FixtureServiceToken()), options, clock);
+    await Task.WhenAll(Enumerable.Range(0, 20).Select(_ => cache.GetAsync(issuer, "wire-user", application, CancellationToken.None)));
+    var hit = await cache.GetAsync(issuer, "wire-user", application, CancellationToken.None);
+    Assert(httpRequests == 1 && hit.Grants.Single().ScopeKind == IamScopeKind.System && hit.Grants.Single().ScopeId == "10");
 });
 
 await Check("S16 IAM down on cache miss returns 503 and never forwards", async () =>
@@ -228,7 +308,7 @@ RouteConfig Route(string id, string method) => new()
 
 IamOperationPolicy Policy(RouteConfig route, string method, IamAuthMode mode, string[]? permissions = null) => new(
     $"orders.{method.ToLowerInvariant()}", route.RouteId, method, IamRouteFingerprint.Compute(route), application, "orders", audience, mode,
-    [IamPrincipalKind.User, IamPrincipalKind.Service], [], (permissions ?? []).ToImmutableArray(), [], IamRequirementMode.All,
+    [IamPrincipalKind.User, IamPrincipalKind.Service], [], (permissions ?? []).ToImmutableArray(), IamRequirementMode.All,
     IamEnforcementMode.GatewayOnly, 1);
 
 IamPolicyBundle Bundle(params IamOperationPolicy[] values)
@@ -242,19 +322,21 @@ IamPolicyBundle Bundle(params IamOperationPolicy[] values)
         {
             applicationId = p.ApplicationId, applicationCode = "orders", p.BackendServiceCode, p.OperationKey,
             gatewayRouteId = p.RouteId, p.HttpMethod, gatewayRouteFingerprint = p.RouteFingerprint, p.AuthMode, p.RequiredAudience,
-            p.AllowedPrincipalKinds, p.RequiredOAuthScopes, p.RequiredPermissions, p.RequirementMode, p.EnforcementMode, p.ResourceScopeRequired
+            p.AllowedPrincipalKinds, p.RequiredOAuthScopes, p.RequiredPermissions, p.RequirementMode, p.EnforcementMode
         }).ToArray()
     }, IamBundleWireProtocol.JsonOptions);
     return IamBundleWireProtocol.Decode(new(1, 1, Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant(),
         DateTimeOffset.UtcNow.AddMinutes(5), Convert.ToBase64String(content)), DateTimeOffset.UtcNow);
 }
 
-string Token(string subject, string tokenAudience)
+string Token(string subject, string tokenAudience, bool expired = false, string type = "Bearer")
 {
+    var now = DateTime.UtcNow;
     var descriptor = new SecurityTokenDescriptor
     {
-        Issuer = issuer, Audience = tokenAudience, Subject = new ClaimsIdentity([new Claim("sub", subject), new Claim("typ", "Bearer")]),
-        Expires = DateTime.UtcNow.AddMinutes(5), SigningCredentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256)
+        Issuer = issuer, Audience = tokenAudience, Subject = new ClaimsIdentity([new Claim("sub", subject), new Claim("typ", type)]),
+        NotBefore = now.AddMinutes(-10), IssuedAt = now.AddMinutes(-10), Expires = now.AddMinutes(expired ? -5 : 5),
+        SigningCredentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256)
     };
     return new JwtSecurityTokenHandler().WriteToken(new JwtSecurityTokenHandler().CreateToken(descriptor));
 }
@@ -288,7 +370,8 @@ sealed class FakeEntitlementSource(TimeProvider? time = null) : IIamEntitlementS
         if (subject == "down") throw new HttpRequestException("fixture down");
         var now = (time ?? TimeProvider.System).GetUtcNow();
         var id = new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(subject)).AsSpan(0, 16));
-        return new(1, id.ToString(), actualIssuer, subject, actualApplication, 1, now,
+        var app = subject == "wrong-app" ? "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb" : actualApplication;
+        return new(1, id.ToString(), actualIssuer, subject, app, 1, now,
             now.AddSeconds(120), true, IamPrincipalKind.User,
             [new IamGrant("orders.delete", IamScopeKind.Global, null, null, "Direct")]);
     }
@@ -299,4 +382,15 @@ sealed class ManualTimeProvider(DateTimeOffset current) : TimeProvider
     private DateTimeOffset _current = current;
     public override DateTimeOffset GetUtcNow() => _current;
     public void Advance(TimeSpan value) => _current += value;
+}
+
+sealed class FixtureServiceToken : IIamServiceTokenProvider
+{
+    public Task<string> GetAsync(CancellationToken cancellationToken) => Task.FromResult("fixture-service-token");
+}
+
+sealed class FixtureHttpHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send) : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+        send(request, cancellationToken);
 }

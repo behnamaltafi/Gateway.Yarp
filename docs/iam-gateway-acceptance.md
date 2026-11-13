@@ -1,5 +1,7 @@
 # IAM Gateway V1 Core acceptance report
 
+> Historical acceptance results for the IAM Gateway branch.
+
 Results below distinguish complete automation from partial coverage and unavailable external systems. Commands were run on `feature/iam-local-pdp` from baseline HEAD `f5d8e1bd869f9390e6377f4e4ab1879f44aaa13e`.
 
 ## Gates

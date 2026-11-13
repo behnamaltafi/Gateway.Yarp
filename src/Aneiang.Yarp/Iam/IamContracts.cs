@@ -6,7 +6,7 @@ namespace Aneiang.Yarp.Iam;
 public enum IamAuthMode { Unconfigured, Anonymous, Authenticated, Permission, InternalOnly }
 public enum IamPrincipalKind { User, Service }
 public enum IamRequirementMode { Any, All }
-public enum IamEnforcementMode { GatewayOnly, GatewayAndResource }
+public enum IamEnforcementMode { GatewayOnly }
 public enum IamScopeKind { Global, System }
 
 public sealed record IamGrant(string PermissionCode, IamScopeKind ScopeKind, string? ScopeId, DateTimeOffset? ExpiresAt, string Source);
@@ -37,11 +37,9 @@ public sealed record IamOperationPolicy(
     ImmutableArray<IamPrincipalKind> AllowedPrincipalKinds,
     ImmutableArray<string> RequiredOAuthScopes,
     ImmutableArray<string> RequiredPermissions,
-    ImmutableArray<string> RequiredBusinessScopes,
     IamRequirementMode RequirementMode,
     IamEnforcementMode EnforcementMode,
-    long PolicyRevision,
-    bool ResourceScopeRequired = false);
+    long PolicyRevision);
 
 public sealed record IamPolicyBundle(
     string SchemaVersion,

@@ -56,11 +56,10 @@ public static class IamBundleWireProtocol
                 || string.IsNullOrWhiteSpace(wire.BackendServiceCode) || wire.AllowedPrincipalKinds.IsDefaultOrEmpty
                 || wire.RequiredOAuthScopes.IsDefault || wire.RequiredPermissions.IsDefault
                 || !Enum.IsDefined(wire.AuthMode) || wire.AuthMode == IamAuthMode.Unconfigured
-                || !Enum.IsDefined(wire.RequirementMode) || !Enum.IsDefined(wire.EnforcementMode)
+                || !Enum.IsDefined(wire.RequirementMode) || wire.EnforcementMode != IamEnforcementMode.GatewayOnly
                 || wire.AllowedPrincipalKinds.Any(k => !Enum.IsDefined(k))
                 || wire.AuthMode != IamAuthMode.Anonymous && string.IsNullOrWhiteSpace(wire.RequiredAudience)
                 || wire.AuthMode == IamAuthMode.Permission && wire.RequiredPermissions.IsEmpty
-                || wire.ResourceScopeRequired != (wire.EnforcementMode == IamEnforcementMode.GatewayAndResource)
                 || wire.AuthMode == IamAuthMode.InternalOnly && wire.AllowedPrincipalKinds.Any(k => k != IamPrincipalKind.Service))
                 throw new IamContractException("policy_invalid");
             if (wire.AuthMode == IamAuthMode.Anonymous && (wire.ApplicationCode == "iam"
@@ -68,7 +67,7 @@ public static class IamBundleWireProtocol
                 throw new IamContractException("sensitive_anonymous_policy");
             policies.Add(new(wire.OperationKey, wire.GatewayRouteId, wire.HttpMethod, wire.GatewayRouteFingerprint, app.ToString("D"),
                 wire.BackendServiceCode, wire.RequiredAudience, wire.AuthMode, wire.AllowedPrincipalKinds, wire.RequiredOAuthScopes,
-                wire.RequiredPermissions, [], wire.RequirementMode, wire.EnforcementMode, envelope.Revision, wire.ResourceScopeRequired));
+                wire.RequiredPermissions, wire.RequirementMode, wire.EnforcementMode, envelope.Revision));
             if (policies.Count > 2048) throw new IamContractException("policy_limit");
         }
         if (policies.Count == 0 || policies.GroupBy(p => p.RouteId.ToUpperInvariant() + "\n" + p.HttpMethod).Any(g => g.Count() > 1))
@@ -83,14 +82,16 @@ public static class IamBundleWireProtocol
     {
         if (value.ValueKind == JsonValueKind.Object)
         {
-            var names = new HashSet<string>(StringComparer.Ordinal);
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var property in value.EnumerateObject())
             { if (!names.Add(property.Name)) throw new IamContractException("duplicate_json_property"); RejectDuplicateProperties(property.Value); }
         }
         else if (value.ValueKind == JsonValueKind.Array) foreach (var item in value.EnumerateArray()) RejectDuplicateProperties(item);
     }
+    [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
     private sealed record WirePolicy(string ApplicationId, string ApplicationCode, string BackendServiceCode, string OperationKey,
         string GatewayRouteId, string HttpMethod, string GatewayRouteFingerprint, IamAuthMode AuthMode, string RequiredAudience,
         ImmutableArray<IamPrincipalKind> AllowedPrincipalKinds, ImmutableArray<string> RequiredOAuthScopes,
-        ImmutableArray<string> RequiredPermissions, IamRequirementMode RequirementMode, IamEnforcementMode EnforcementMode, bool ResourceScopeRequired);
+        ImmutableArray<string> RequiredPermissions, IamRequirementMode RequirementMode,
+        [property: JsonRequired] IamEnforcementMode EnforcementMode);
 }

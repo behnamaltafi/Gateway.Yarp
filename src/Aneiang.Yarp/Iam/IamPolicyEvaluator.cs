@@ -18,21 +18,16 @@ public sealed class IamPolicyEvaluator(TimeProvider clock)
         if (policy.AuthMode is IamAuthMode.Authenticated or IamAuthMode.InternalOnly) return IamDecision.Allow();
         if (policy.AuthMode != IamAuthMode.Permission || policy.RequiredPermissions.IsDefaultOrEmpty)
             return IamDecision.Deny("policy_mode");
-        var grants = entitlement.Grants.Where(g => g.ExpiresAt is null || g.ExpiresAt > now).ToArray();
-        bool InContext(IamGrant grant, string? system) => grant.ScopeKind == IamScopeKind.Global && grant.ScopeId is null
-            || system is not null && grant.ScopeKind == IamScopeKind.System && grant.ScopeId == system;
-        bool Allows(string? system)
-        {
-            bool Has(string code) => grants.Any(g => g.PermissionCode == code && InContext(g, system));
-            return policy.RequirementMode == IamRequirementMode.All ? policy.RequiredPermissions.All(Has)
-                : policy.RequirementMode == IamRequirementMode.Any && policy.RequiredPermissions.Any(Has);
-        }
-        // GatewayOnly cannot consume a scoped grant without a destination resource check.
-        if (Allows(null)) return IamDecision.Allow();
-        if (policy.EnforcementMode == IamEnforcementMode.GatewayAndResource && policy.ResourceScopeRequired
-            && grants.Where(g => g.ScopeKind == IamScopeKind.System).Select(g => g.ScopeId).Distinct().Any(Allows))
-            return IamDecision.Allow(); // pre-check only; destination independently checks the actual resource's context
-        return IamDecision.Deny("permission");
+        // Gateway endpoint policies use only Global grants. Distributed System scope stays in the snapshot.
+        var permissions = entitlement.Grants
+            .Where(g => g.ScopeKind == IamScopeKind.Global && g.ScopeId is null
+                && (g.ExpiresAt is null || g.ExpiresAt > now))
+            .Select(g => g.PermissionCode)
+            .ToHashSet(StringComparer.Ordinal);
+        var allowed = policy.RequirementMode == IamRequirementMode.All
+            ? policy.RequiredPermissions.All(permissions.Contains)
+            : policy.RequirementMode == IamRequirementMode.Any && policy.RequiredPermissions.Any(permissions.Contains);
+        return allowed ? IamDecision.Allow() : IamDecision.Deny("permission");
     }
 
     public static bool HasAudience(ClaimsPrincipal principal, string required)

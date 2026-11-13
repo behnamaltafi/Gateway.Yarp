@@ -1,8 +1,10 @@
 using System.Diagnostics;
 using System.Reflection;
 using Aneiang.Yarp.Dashboard.Infrastructure.Deployment;
+using Aneiang.Yarp.Iam;
 using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -82,7 +84,7 @@ public class HealthCheckMiddleware
             return;
         }
 
-        var (isReady, checks) = PerformReadinessCheck();
+        var (isReady, checks) = PerformReadinessCheck(context);
 
         if (path.Equals(_options.HealthCheck.ReadyPath, StringComparison.OrdinalIgnoreCase))
         {
@@ -114,10 +116,17 @@ public class HealthCheckMiddleware
         }
     }
 
-    private (bool IsReady, Dictionary<string, object> Checks) PerformReadinessCheck()
+    private (bool IsReady, Dictionary<string, object> Checks) PerformReadinessCheck(HttpContext context)
     {
         var checks = new Dictionary<string, object>();
         var isReady = true;
+
+        if (context.RequestServices.GetService<IIamPolicyBundleProvider>() is { } bundles)
+        {
+            var ready = bundles.IsReady;
+            checks["iam-policy-bundle"] = new { status = ready ? "ok" : "not-ready" };
+            isReady &= ready;
+        }
 
         if (_options.HealthCheck.CheckConfigLoaded)
         {

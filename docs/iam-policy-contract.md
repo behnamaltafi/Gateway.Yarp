@@ -1,27 +1,21 @@
 # IAM V1 Core transport contract
 
-This is the Gateway-side contract. The IAM repository remains the source of truth and must publish the same versioned JSON schema and canonical hashes. JSON property matching is case-insensitive in the .NET client; producers should emit the property names shown by the C# records in `Aneiang.Yarp.Iam`.
+The Gateway validates JWTs and applies published API policies. IAM publishes policies and resolves the effective grants for a principal and application. The destination service owns resource access, ownership, data isolation and business rules.
 
 ## Published policy bundle
 
-`GET {PolicyBundleEndpoint}` is a direct internal Gateway → IAM call. It must require a service credential or mTLS at the infrastructure boundary and must not traverse this Gateway's business proxy. The optional `InternalApiToken` is sent as a bearer credential; production should inject it from a secret provider, never configuration committed to source.
+`GET {PolicyBundleEndpoint}` goes directly to IAM over HTTPS with a service credential. The schema 1 envelope has `schemaVersion` (integer), `revision`, `contentHash`, `validatedUntil` and `policyContentBase64`. The hash is lowercase hexadecimal SHA-256 of the exact decoded content bytes. Decoded content contains `schemaVersion`, `revision`, `publishedAt`, `routeManifestHash`, `routeManifestBase64` and `policies`. The manifest hash covers the exact decoded schema 1 manifest bytes.
 
-Required root fields are `schemaVersion` (`1.0`), positive `revision`, lowercase hexadecimal SHA-256 `hash`, `routeManifestHash`, `publishedAt`, future `validatedUntil`, and `policies`. A bundle is immutable. The Gateway accepts only a strictly newer revision and retains last-known-good only while `validatedUntil` remains in the future.
+Each policy carries `applicationId`, `applicationCode`, `backendServiceCode`, `operationKey`, `gatewayRouteId`, `httpMethod`, `gatewayRouteFingerprint`, `authMode`, `requiredAudience`, `allowedPrincipalKinds`, `requiredOAuthScopes`, `requiredPermissions`, `requirementMode` and explicit string `enforcementMode`. GatewayOnly is the only accepted enforcement mode. Legacy resource flags are rejected as unknown policy members, including when false. IAM must explicitly publish compatible bytes at a fresh revision for cutover.
 
-Each policy contains: `operationKey`, exact case-sensitive `routeId`, uppercase-insensitive `httpMethod`, lowercase route `routeFingerprint`, `applicationId`, `backendServiceCode`, `requiredAudience`, `authMode`, `allowedPrincipalKinds`, optional `requiredOAuthScopes`, `requiredPermissions`, optional `requiredBusinessScopes`, `requirementMode`, `enforcementMode`, and positive `policyRevision`.
+The manifest exporter uses the active YARP provider snapshot. The fingerprint hashes the route ID, cluster ID, order, match conditions and ordered transforms. Requests require an exact published route/method and a matching live fingerprint. Destination instances can change through service discovery. The control plane must protect cluster and destination administration.
 
-`routeFingerprint` is SHA-256 over canonical UTF-8 JSON of security-relevant YARP route fields: RouteId, ClusterId, Match path/hosts/methods/headers/query constraints and ordered transforms. Destinations are excluded because service discovery changes destination instances without changing authorization semantics. Any match or transform change requires republishing the manifest.
-
-`routeManifestHash` is SHA-256 over the JSON array sorted by RouteId then method, with entries `{ operationKey, routeId, method, routeFingerprint }`. `hash` is SHA-256 over canonical bundle content excluding `hash`, with policies sorted by RouteId, method and OperationKey. IAM and Gateway compatibility tests must compare known vectors before production integration.
-
-Invalid schema, hash, manifest hash, timestamps, duplicate route+method, empty Permission requirements, Unconfigured mode, malformed/oversized JSON or a stale revision is rejected and never becomes current.
+The bundle store rejects revision rollback and same-revision content changes. IAM can renew the lease on identical content. The last validated bundle remains usable only before lease expiry. Missing or expired bundles cause readiness and proxy authorization to fail closed.
 
 ## Entitlement snapshot
 
-`GET {EntitlementEndpoint}?issuer=...&subject=...&applicationId=...` is the authenticated internal lookup on cache miss. Required fields are `schemaVersion` (`1.0`), canonical `principalId`, exact `issuer`, exact `subject`, exact `applicationId`, positive `revision`, `issuedAt`, future `expiresAt`, `isActive`, `principalKind` (`User` or `Service`) and `grants`.
+`POST {EntitlementEndpoint}` sends schema 1, `applicationId` and `validatedIdentity` with `issuer`, `subject` and `clientId`. The reply includes integer `schemaVersion`, `principalId`, `applicationId`, `issuer`, `subject`, `principalKind`, `clientId`, `revision`, `issuedAt`, `expiresAt`, `isActive` and `grants`. Each effective grant carries `permissionCode`, `scopeKind`, `scopeId`, `expiresAt` and `source`.
 
-Each grant contains `permission`, business `scope`, optional `expiresAt`, and `source` (`Direct` or `Role`). The Gateway does not reconstruct roles. It evaluates the already-effective grants locally and checks each grant expiry. If `requiredBusinessScopes` is present, a permission is effective only when its grant has an exact required scope. Scope values are opaque business scopes; `System10` is never treated as `Global` or `System20`. Resource ownership and final SystemId enforcement remain downstream responsibilities for `GatewayAndResource`.
+Direct and role-derived Global grants qualify for GatewayOnly permission checks while active. System grants retain their System ID in the snapshot and cannot authorize API-wide permission. The Gateway strips incoming client identity and legacy proof headers. Each service uses its own trusted data for resource decisions.
 
-Bindings (`iss+sub+applicationId`) must exactly match the validated JWT-derived request. Mismatch, inactive identity, malformed data, over 10,000 grants or expired snapshot is not cached. Positive absolute lifetime is `min(EntitlementMaxAge=120s, snapshot.expiresAt)`; inactive negative lifetime is `min(NegativeCacheMaxAge=15s, snapshot.expiresAt)`.
-
-Delegated/exchanged-token actor semantics are not defined in schema 1.0. IAM must publish an agreed extension before those identities can gain additional authorization; the Gateway must not infer delegation from headers or `azp` alone.
+The dedicated L1 bounds positive entries at 120 seconds and negative entries at 15 seconds, with the snapshot expiration as an additional bound. The PDP checks grant expiration on each decision. A miss that cannot resolve through IAM fails closed.

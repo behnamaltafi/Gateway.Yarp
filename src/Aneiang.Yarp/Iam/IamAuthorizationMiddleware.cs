@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging;
 using Yarp.ReverseProxy.Model;
 using Microsoft.Extensions.Options;
 using System.Net;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 namespace Aneiang.Yarp.Iam;
 
@@ -21,14 +23,16 @@ public sealed class IamAuthorizationMiddleware(RequestDelegate next, ILogger<Iam
         IIamPolicyBundleProvider bundles,
         IIamEntitlementCache entitlements,
         IamPolicyEvaluator evaluator,
-        IOptions<IamGatewayOptions> options)
+        IOptions<IamGatewayOptions> options,
+        TimeProvider clock)
     {
         foreach (var header in UntrustedHeaders) context.Request.Headers.Remove(header);
 
         var route = context.Features.Get<IReverseProxyFeature>()?.Route?.Config;
         if (route is null) { await RejectAsync(context, StatusCodes.Status403Forbidden, "route_unmatched"); return; }
         var bundle = bundles.Current;
-        if (!bundles.IsReady || bundle is null) { await RejectAsync(context, StatusCodes.Status503ServiceUnavailable, "bundle_unavailable"); return; }
+        if (bundle is null || !bundles.IsReady || bundle.ValidatedUntil <= clock.GetUtcNow())
+        { await RejectAsync(context, StatusCodes.Status503ServiceUnavailable, "bundle_unavailable"); return; }
 
         var policy = bundle.Policies.SingleOrDefault(p =>
             string.Equals(p.RouteId, route.RouteId, StringComparison.Ordinal)
@@ -38,8 +42,10 @@ public sealed class IamAuthorizationMiddleware(RequestDelegate next, ILogger<Iam
         { await RejectAsync(context, StatusCodes.Status403Forbidden, "route_manifest_mismatch"); return; }
         if (policy.AuthMode == IamAuthMode.Anonymous) { await next(context); return; }
 
-        if (context.User.Identity?.IsAuthenticated != true)
+        var authentication = await context.AuthenticateAsync(JwtBearerDefaults.AuthenticationScheme);
+        if (!authentication.Succeeded || authentication.Principal is null)
         { await RejectAsync(context, StatusCodes.Status401Unauthorized, "token_required"); return; }
+        context.User = authentication.Principal;
         if (IsIdToken(context.User)) { await RejectAsync(context, StatusCodes.Status401Unauthorized, "token_type"); return; }
         if (new[] { "iss", "sub", "client_id", "azp" }.Any(type => context.User.FindAll(type).Skip(1).Any()))
         { await RejectAsync(context, 401, "identity_claim_conflict"); return; }
@@ -61,11 +67,10 @@ public sealed class IamAuthorizationMiddleware(RequestDelegate next, ILogger<Iam
         try
         {
             var snapshot = await entitlements.GetAsync(issuer, subject, policy.ApplicationId, context.RequestAborted, clientId).ConfigureAwait(false);
+            if (bundle.ValidatedUntil <= clock.GetUtcNow())
+            { await RejectAsync(context, StatusCodes.Status503ServiceUnavailable, "bundle_unavailable"); return; }
             var decision = evaluator.Evaluate(policy, context.User, snapshot);
             if (!decision.Allowed) { await RejectAsync(context, decision.StatusCode, decision.ReasonCode); return; }
-            if (policy.EnforcementMode == IamEnforcementMode.GatewayAndResource)
-                context.Request.Headers["X-IAM-Resource-Proof"] = IamResourceProof.Create(policy, snapshot,
-                    context.Request.Headers.Authorization.ToString(), options.Value, context.Request.Method);
             context.Items["Aneiang.Iam.OperationKey"] = policy.OperationKey;
             context.Items["Aneiang.Iam.PrincipalId"] = snapshot.PrincipalId;
             await next(context);

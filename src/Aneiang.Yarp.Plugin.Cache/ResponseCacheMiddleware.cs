@@ -1,6 +1,8 @@
+using Aneiang.Yarp.Iam;
 using Aneiang.Yarp.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
 using Yarp.ReverseProxy.Model;
 
 namespace Aneiang.Yarp.Plugin.Cache;
@@ -21,7 +23,8 @@ public sealed class ResponseCacheMiddleware
     public async Task InvokeAsync(HttpContext context)
     {
         var routeId = context.Features.Get<IReverseProxyFeature>()?.Route?.Config?.RouteId;
-        if (context.Request.Method is not ("GET" or "HEAD") || string.IsNullOrWhiteSpace(routeId) ||
+        if (context.RequestServices.GetService<IamGatewayMarker>() is not null ||
+            context.Request.Method is not ("GET" or "HEAD") || string.IsNullOrWhiteSpace(routeId) ||
             !_plans.Current.ResponseCacheByRoute.TryGetValue(routeId, out var config) || !config.Enabled)
         {
             await _next(context);

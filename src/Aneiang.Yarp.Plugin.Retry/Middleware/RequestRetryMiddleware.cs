@@ -84,7 +84,8 @@ public sealed class RequestRetryMiddleware : GatewayMiddlewareBase
             return;
         }
 
-        if (!retryConfig.RetryNonIdempotent && NonIdempotentMethods.Contains(context.Request.Method))
+        if (NonIdempotentMethods.Contains(context.Request.Method) &&
+            (!retryConfig.RetryNonIdempotent || context.RequestServices.GetService(typeof(Aneiang.Yarp.Iam.IamGatewayMarker)) is not null))
         {
             await Next(context);
             return;

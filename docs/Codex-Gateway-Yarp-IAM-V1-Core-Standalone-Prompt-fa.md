@@ -1,5 +1,7 @@
 # MASTER PROMPT — توسعه Gateway.Yarp برای اتصال به IAM V1 Core
 
+> Historical design. The current schema and enforcement boundary are documented in [IAM V1 Core transport contract](iam-policy-contract.md).
+
 > **سند اجرایی مستقل برای Codex — فقط Repository مربوط به Gateway.**
 >
 > Repository هدف: `https://github.com/behnamaltafi/Gateway.Yarp.git`

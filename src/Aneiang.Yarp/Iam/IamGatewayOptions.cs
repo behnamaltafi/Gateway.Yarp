@@ -19,7 +19,6 @@ public sealed class IamGatewayOptions
     public string ManifestExportAudience { get; set; } = "gateway-manifest";
     public string[] ManifestExportSubjects { get; set; } = [];
     public string[] ManifestExportRemoteAddresses { get; set; } = [];
-    public Dictionary<string, string> ResourceSigningKeys { get; set; } = new(StringComparer.Ordinal);
     public TimeSpan EntitlementMaxAge { get; set; } = TimeSpan.FromSeconds(120);
     public TimeSpan NegativeCacheMaxAge { get; set; } = TimeSpan.FromSeconds(15);
     public int EntitlementCacheSize { get; set; } = 10_000;
