@@ -45,3 +45,5 @@ pwsh -NoProfile -File .\Start-LocalGateway.ps1 -Http -VerifyLogin
 | Keycloak | `http://localhost:18445` |
 
 Use one Gateway launcher per port. If a background Gateway process is already running, stop that local process before starting F5. Process IDs and logs are under `.gapcode/sso-http`. The launcher uses the IAM authorization controllers in a local host, and compiles the IAM Admin UI from the sibling checkout. For a business proxy smoke test, publish an operation policy against an exported route manifest. Dashboard SSO and its management grant can be verified independently.
+
+For a complete example of exposing an API through Gateway and making it available from a frontend menu, see the [FindAll walkthrough](publish-findall-menu.md).
