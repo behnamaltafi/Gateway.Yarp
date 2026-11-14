@@ -77,8 +77,9 @@ public sealed class AccessAuthorizationMiddleware(RequestDelegate next, ILogger<
             throw new IamContractException("token_roles_invalid");
         return value.EnumerateArray().Select(x =>
         {
-            if (x.ValueKind != JsonValueKind.String || x.GetString() is not { Length: > 0 and <= 200 } name
-                || name.Any(char.IsControl)) throw new IamContractException("token_role_invalid");
+            var name = x.ValueKind == JsonValueKind.String ? x.GetString() : null;
+            if (string.IsNullOrEmpty(name) || name.Length > 200 || name.Any(char.IsControl))
+                throw new IamContractException("token_role_invalid");
             return name;
         }).Distinct(StringComparer.Ordinal).ToArray();
     }
