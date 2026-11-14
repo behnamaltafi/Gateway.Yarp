@@ -163,7 +163,8 @@ public static class DashboardApplicationBuilderExtensions
             app.UseStaticFiles();
         }
 
-        var iamEnabled = app.ApplicationServices.GetService<IamGatewayMarker>() is not null;
+        var accessEnabled = app.ApplicationServices.GetService<AccessGatewayMarker>() is not null;
+        var iamEnabled = accessEnabled || app.ApplicationServices.GetService<IamGatewayMarker>() is not null;
         if (autoUseMiddleware)
         {
             app.Use((context, next) => iamEnabled && proxyActive && context.GetEndpoint()?.Metadata.GetMetadata<RouteModel>() is not null
@@ -208,7 +209,8 @@ public static class DashboardApplicationBuilderExtensions
                     // transforms/plugins. Its service marker is registered only for IAM-enabled hosts.
                     if (iamEnabled)
                     {
-                        proxyPipeline.UseAneiangIamGateway();
+                        if (accessEnabled) proxyPipeline.UseAneiangAccessGateway();
+                        else proxyPipeline.UseAneiangIamGateway();
                         if (management is not null)
                             proxyPipeline.Use((context, next) =>
                             {
