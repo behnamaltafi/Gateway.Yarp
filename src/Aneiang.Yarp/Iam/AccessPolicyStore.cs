@@ -55,7 +55,11 @@ public sealed class AccessPolicyStore(TimeProvider clock)
                 || r.GatewayRouteId.Length > 200 || r.GatewayRouteId.Any(char.IsControl)
                 || r.Method is not ("GET" or "POST" or "PUT" or "PATCH" or "DELETE" or "HEAD" or "OPTIONS" or "TRACE")
                 || r.PathTemplate is null || !r.PathTemplate.StartsWith('/') || r.PathTemplate.Length > 512
-                || r.PathTemplate.StartsWith("//", StringComparison.Ordinal) || r.PathTemplate.Contains('%')
+                || r.PathTemplate.StartsWith("//", StringComparison.Ordinal)
+                || r.PathTemplate.Contains("//", StringComparison.Ordinal)
+                || r.PathTemplate.IndexOfAny(['\\', '?', '#', '%', '*']) >= 0
+                || r.PathTemplate.Any(char.IsWhiteSpace)
+                || r.PathTemplate.Split('/').Any(segment => segment is "." or "..")
                 || r.AccessCodes is null || r.AccessCodes.Length > 256
                 || r.AccessCodes.Any(x => string.IsNullOrWhiteSpace(x) || x.Length > 120 || x.Any(char.IsWhiteSpace)))
                 throw new IamContractException("access_route_invalid");
