@@ -12,7 +12,14 @@ namespace Aneiang.Yarp.Iam;
 
 internal static class AccessJson
 {
-    public static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
+    public static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web) { MaxDepth = 32 };
+
+    public static T? Deserialize<T>(byte[] bytes)
+    {
+        using var document = JsonDocument.Parse(bytes, new JsonDocumentOptions { MaxDepth = 32 });
+        IamBundleWireProtocol.RejectDuplicateProperties(document.RootElement);
+        return document.RootElement.Deserialize<T>(Options);
+    }
 }
 
 internal sealed class AccessRouteRefreshService(
@@ -32,7 +39,7 @@ internal sealed class AccessRouteRefreshService(
                     HttpCompletionOption.ResponseHeadersRead, stoppingToken);
                 if (!response.IsSuccessStatusCode) throw new IamContractException("access_routes_unavailable");
                 var bytes = await IamHttpPayload.ReadAsync(response, 2 * 1024 * 1024, stoppingToken);
-                var snapshot = JsonSerializer.Deserialize<AccessRouteSnapshot>(bytes, AccessJson.Options)
+                var snapshot = AccessJson.Deserialize<AccessRouteSnapshot>(bytes)
                     ?? throw new IamContractException("access_routes_malformed");
                 store.Accept(snapshot);
             }
@@ -73,7 +80,7 @@ public sealed class AccessEntitlementCache(
             HttpCompletionOption.ResponseHeadersRead, ct);
         if (!response.IsSuccessStatusCode) throw new IamContractException("access_resolve_unavailable");
         var bytes = await IamHttpPayload.ReadAsync(response, 128 * 1024, ct);
-        var result = JsonSerializer.Deserialize<AccessEntitlementSnapshot>(bytes, AccessJson.Options)
+        var result = AccessJson.Deserialize<AccessEntitlementSnapshot>(bytes)
             ?? throw new IamContractException("access_resolve_malformed");
         var now = clock.GetUtcNow();
         if (result.SchemaVersion != 1 || result.Revision != revision || result.ApplicationId != input.ApplicationId
