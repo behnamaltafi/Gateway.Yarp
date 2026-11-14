@@ -12,6 +12,7 @@ public sealed class AccessGatewayOptions
 {
     public const string SectionName = "Gateway:Access";
     public bool Enabled { get; set; }
+    internal bool AllowLocalHttp { get; set; }
     public Uri? RoutesEndpoint { get; set; }
     public Uri? ResolveEndpoint { get; set; }
     public TimeSpan RefreshInterval { get; set; } = TimeSpan.FromSeconds(15);
