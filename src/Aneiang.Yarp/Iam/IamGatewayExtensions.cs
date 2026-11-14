@@ -21,7 +21,11 @@ public static class IamGatewayExtensions
     {
         services.AddOptions<IamGatewayOptions>().Bind(configuration.GetSection(IamGatewayOptions.SectionName));
         if (configure is not null) services.Configure(configure);
-        services.Configure<IamGatewayOptions>(options => options.AllowLocalHttp = allowLocalHttp);
+        services.Configure<IamGatewayOptions>(options =>
+        {
+            options.AllowLocalHttp = allowLocalHttp;
+            options.AccessModeEnabled = configuration.GetValue<bool>("Gateway:Access:Enabled");
+        });
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IValidateOptions<IamGatewayOptions>, IamGatewayOptionsValidator>());
         services.AddOptions<IamGatewayOptions>().ValidateOnStart();
         services.TryAddSingleton(TimeProvider.System);
@@ -38,8 +42,11 @@ public static class IamGatewayExtensions
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
         services.AddHttpClient("Aneiang.Iam.ServiceAuth", (sp, client) => client.Timeout = sp.GetRequiredService<IOptions<IamGatewayOptions>>().Value.IamTimeout)
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false });
-        services.AddHostedService<IamPolicyBundleRefreshService>();
-        services.AddHealthChecks().AddCheck<IamPolicyBundleHealthCheck>("iam-policy-bundle", tags: ["ready"]);
+        if (!configuration.GetValue<bool>("Gateway:Access:Enabled"))
+        {
+            services.AddHostedService<IamPolicyBundleRefreshService>();
+            services.AddHealthChecks().AddCheck<IamPolicyBundleHealthCheck>("iam-policy-bundle", tags: ["ready"]);
+        }
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
         services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)

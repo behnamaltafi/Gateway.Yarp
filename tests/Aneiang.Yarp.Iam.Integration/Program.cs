@@ -296,6 +296,54 @@ await Check("S18/S22 expired bundle degrades readiness and blocks forwarding", a
     Assert(forwards == before);
 });
 
+await Check("Access ANY, many-to-many route mapping, and exact method/path checks", () =>
+{
+    var now = DateTimeOffset.UtcNow;
+    var clock = new ManualTimeProvider(now);
+    var accessStore = new AccessPolicyStore(clock);
+    var appId = Guid.Parse(application);
+    accessStore.Accept(new AccessRouteSnapshot(1, 20, now, now.AddSeconds(60),
+    [
+        new AccessRouteRule(appId, "survey-route", "GET", "/api/surveys", ["survey.view", "survey.manager"]),
+        new AccessRouteRule(appId, "survey-route", "DELETE", "/api/surveys/{id}", ["survey.delete", "survey.manager"]),
+        new AccessRouteRule(appId, "survey-route", "POST", "/api/surveys", [])
+    ]));
+    var deletion = accessStore.Find("survey-route", "DELETE", new PathString("/api/surveys/42"), out var ambiguous);
+    Assert(!ambiguous && deletion is not null && deletion.AccessCodes.Length == 2);
+    Assert(deletion!.AccessCodes.Any(new[] { "survey.manager" }.Contains)); // ANY via manager only
+    Assert(!deletion.AccessCodes.Any(new[] { "survey.view" }.Contains)); // view is not delete
+    Assert(accessStore.Find("survey-route", "DELETE", new PathString("/api/surveys"), out _) is null);
+    Assert(accessStore.Find("survey-route", "GET", new PathString("/api/surveys"), out _) is not null);
+    Assert(accessStore.Find("wrong-route", "DELETE", new PathString("/api/surveys/42"), out _) is null);
+    var unassigned = accessStore.Find("survey-route", "POST", new PathString("/api/surveys"), out _);
+    Assert(unassigned is not null && unassigned.AccessCodes.Length == 0);
+    Assert(ThrowsAccessContract(() => accessStore.Accept(new AccessRouteSnapshot(
+        1, 19, now, now.AddSeconds(60), [])))); // revision rollback
+    clock.Advance(TimeSpan.FromMinutes(2));
+    Assert(!accessStore.IsReady);
+    Assert(accessStore.Find("survey-route", "DELETE", new PathString("/api/surveys/42"), out _) is null);
+    return Task.CompletedTask;
+});
+
+await Check("Access fail-closed on ambiguous routes and duplicate mappings", () =>
+{
+    var now = DateTimeOffset.UtcNow;
+    var appId = Guid.Parse(application);
+    var store = new AccessPolicyStore(TimeProvider.System);
+    Assert(ThrowsAccessContract(() => store.Accept(new AccessRouteSnapshot(1, 1, now, now.AddSeconds(60),
+    [
+        new AccessRouteRule(appId, "survey-route", "DELETE", "/api/surveys/{id}", ["survey.delete"]),
+        new AccessRouteRule(appId, "survey-route", "DELETE", "/api/surveys/{id}", ["survey.viewer"])
+    ]))));
+    store.Accept(new AccessRouteSnapshot(1, 2, now, now.AddSeconds(60),
+    [
+        new AccessRouteRule(appId, "survey-route", "DELETE", "/api/surveys/{id}", ["survey.delete"]),
+        new AccessRouteRule(appId, "survey-route", "DELETE", "/api/surveys/{other}", ["survey.manager"])
+    ]));
+    Assert(store.Find("survey-route", "DELETE", new PathString("/api/surveys/1"), out var ambiguous) is null && ambiguous);
+    return Task.CompletedTask;
+});
+
 Console.WriteLine($"IAM integration: {passed} passed, {failures.Count} failed (.NET {Environment.Version}).");
 foreach (var failure in failures) Console.Error.WriteLine(failure);
 if (failures.Count != 0) Environment.ExitCode = 1;
@@ -345,6 +393,12 @@ async Task Check(string name, Func<Task> test)
 {
     try { await test(); passed++; Console.WriteLine($"PASS {name}"); }
     catch (Exception ex) { failures.Add($"FAIL {name}: {ex.Message}"); }
+}
+
+static bool ThrowsAccessContract(Action action)
+{
+    try { action(); return false; }
+    catch (IamContractException) { return true; }
 }
 
 static void Assert(bool condition, string? message = null)

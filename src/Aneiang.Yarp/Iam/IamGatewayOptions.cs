@@ -5,6 +5,7 @@ public sealed class IamGatewayOptions
     public const string SectionName = "Gateway:Iam";
     public bool Enabled { get; set; }
     internal bool AllowLocalHttp { get; set; }
+    internal bool AccessModeEnabled { get; set; }
     public string Authority { get; set; } = string.Empty;
     public string Issuer { get; set; } = string.Empty;
     public string Audience { get; set; } = string.Empty;
@@ -42,14 +43,14 @@ internal sealed class IamGatewayOptionsValidator : Microsoft.Extensions.Options.
             && (!Uri.TryCreate(value.Authority, UriKind.Absolute, out var authority) || !IamTransport.Allows(authority, true)))
             errors.Add("Local IAM authority requires HTTPS or loopback HTTP.");
         if (string.IsNullOrWhiteSpace(value.Audience)) errors.Add("Audience is required.");
-        if (value.PolicyBundleEndpoint is null) errors.Add("PolicyBundleEndpoint is required.");
+        if (!value.AccessModeEnabled && value.PolicyBundleEndpoint is null) errors.Add("PolicyBundleEndpoint is required.");
         if (value.EntitlementEndpoint is null) errors.Add("EntitlementEndpoint is required.");
         if (value.EntitlementMaxAge <= TimeSpan.Zero || value.EntitlementMaxAge > TimeSpan.FromSeconds(120)) errors.Add("EntitlementMaxAge must be in (0,120s].");
         if (value.NegativeCacheMaxAge <= TimeSpan.Zero || value.NegativeCacheMaxAge > TimeSpan.FromSeconds(15)) errors.Add("NegativeCacheMaxAge must be in (0,15s].");
         if (value.EntitlementCacheSize is < 1 or > 1_000_000) errors.Add("EntitlementCacheSize is invalid.");
         if (value.MaxConcurrentEntitlementFetches is < 1 or > 4096) errors.Add("MaxConcurrentEntitlementFetches is invalid.");
         if (value.MaxPendingEntitlementFetches is < 1 or > 4096) errors.Add("MaxPendingEntitlementFetches is invalid.");
-        if (!IamTransport.Allows(value.PolicyBundleEndpoint, value.AllowLocalHttp)
+        if ((!value.AccessModeEnabled && !IamTransport.Allows(value.PolicyBundleEndpoint, value.AllowLocalHttp))
             || !IamTransport.Allows(value.EntitlementEndpoint, value.AllowLocalHttp)) errors.Add("IAM endpoints require HTTPS or explicit local loopback HTTP.");
         if (value.IamTimeout <= TimeSpan.Zero || value.IamTimeout > TimeSpan.FromSeconds(30)) errors.Add("IAM timeout is invalid.");
         if (value.BundleRefreshInterval <= TimeSpan.Zero || value.BundleRefreshInterval > TimeSpan.FromHours(12)) errors.Add("Bundle refresh interval is invalid.");
