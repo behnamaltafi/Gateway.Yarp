@@ -59,6 +59,8 @@ try
         !Uri.TryCreate(endpoint["Url"], UriKind.Absolute, out var address) || !address.IsLoopback))
         throw new InvalidOperationException("The local HTTP profile requires loopback listeners.");
     builder.Services.AddAneiangIamGateway(builder.Configuration, allowLocalHttp);
+    if (builder.Configuration.GetValue<bool>("Gateway:Access:Enabled"))
+        builder.Services.AddAneiangAccessGateway(builder.Configuration, allowLocalHttp);
     builder.Services.AddAneiangDashboardSso(builder.Configuration, allowLocalHttp);
 
     // Replace default logger with Serilog
